@@ -261,7 +261,7 @@ int main(int argc, char* argv[])
     }
     if (opt.version) {
         port::setUtf8Console(true);
-        std::cout << "HiBer Common Installer Module v1.0.0 (hci_cli)\n";
+        std::cout << "HiBer Common Installer Module v" HCI_VERSION_STRING " (hci_cli)\n";
         return 0;
     }
 

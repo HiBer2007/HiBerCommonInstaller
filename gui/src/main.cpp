@@ -94,7 +94,7 @@ int main(int argc, char* argv[])
         return 0;
     }
     if (opt.version) {
-        std::cout << "HiBer Common Installer Module v1.0.0 (hci_gui)\n";
+        std::cout << "HiBer Common Installer Module v" HCI_VERSION_STRING " (hci_gui)\n";
         return 0;
     }
 

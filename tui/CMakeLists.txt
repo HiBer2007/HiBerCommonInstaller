@@ -13,4 +13,5 @@ target_link_libraries(hci_tui PRIVATE
     hci_flow
     hci_ext
 )
+target_compile_definitions(hci_tui PRIVATE HCI_VERSION_STRING="${HCI_VERSION}")
 hci_add_version_info(hci_tui "HiBer Common Installer TUI" "HiBer Common Installer Module")

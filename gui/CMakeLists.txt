@@ -19,6 +19,14 @@ qt_add_executable(hci_gui ${GUI_SOURCES})
 # a terminal; release it on double-click).
 set_target_properties(hci_gui PROPERTIES AUTOMOC ON)
 
+# 产物命名：默认 HCInstaller_Template_<HCI_VERSION>.exe；宿主可用
+# HCI_GUI_OUTPUT_NAME 覆盖（如 NSUM 特化 = NSUM_Installer_<版本>.exe）。
+if(NOT DEFINED HCI_GUI_OUTPUT_NAME)
+    set(HCI_GUI_OUTPUT_NAME "HCInstaller_Template_${HCI_VERSION}")
+endif()
+set_target_properties(hci_gui PROPERTIES OUTPUT_NAME "${HCI_GUI_OUTPUT_NAME}")
+target_compile_definitions(hci_gui PRIVATE HCI_VERSION_STRING="${HCI_VERSION}")
+
 target_include_directories(hci_gui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../core/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../flow/include

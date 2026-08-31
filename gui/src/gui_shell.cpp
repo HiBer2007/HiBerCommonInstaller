@@ -413,5 +413,3 @@ void GuiFlowUi::onFinish(bool success, const std::string& message,
 
 } // namespace gui
 } // namespace hci
-
-#include "gui_shell.moc"
