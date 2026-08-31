@@ -238,8 +238,8 @@ bool runProcess(const std::vector<std::string>& command, int waitMs,
     si.hStdInput = ::GetStdHandle(STD_INPUT_HANDLE);
 
     PROCESS_INFORMATION pi{};
-    std::wstring wCmd = L"\"" + cmdLine + L"\"";
-    std::vector<wchar_t> mutableCmd(wCmd.begin(), wCmd.end());
+    // Each argument is already quoted as needed (first token = exe path).
+    std::vector<wchar_t> mutableCmd(cmdLine.begin(), cmdLine.end());
     mutableCmd.push_back(L'\0');
 
     BOOL ok = ::CreateProcessW(nullptr, mutableCmd.data(), nullptr, nullptr, TRUE,
