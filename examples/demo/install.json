@@ -1,0 +1,20 @@
+{
+  "id": "install",
+  "steps": [
+    { "id": "welcome", "ui": "welcome" },
+    { "id": "license", "ui": "license", "source": "LICENSE.txt" },
+    { "id": "components", "ui": "components" },
+    { "id": "extract", "type": "extract", "source": "dir:payload", "target": "{installDir}" },
+    { "id": "editorCheck", "type": "script",
+      "script": "if vars['components.editor'] == 'true' then print('[demo] editor component selected') end" },
+    { "id": "writeconf", "type": "template", "target": "{installDir}",
+      "file": "install.conf",
+      "header": "# DemoApp Install Configuration",
+      "template": {
+        "install_path": "{installDir}",
+        "install_editor": "{components.editor}",
+        "app_version": "{productVersion}"
+      } },
+    { "id": "finish", "ui": "finish", "message": "DemoApp installed successfully" }
+  ]
+}

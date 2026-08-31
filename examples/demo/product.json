@@ -1,0 +1,27 @@
+{
+  "productName": "DemoApp",
+  "company": "HiBer2007",
+  "orgName": "HiBer2007",
+  "version": "1.5.0",
+  "defaultMode": "cli",
+  "defaultInstallPath": "",
+  "banner": { "font": "slant" },
+  "components": [
+    { "id": "editor", "label": "Demo Editor Component", "exe": "editor.exe",
+      "shortcutName": "DemoApp Editor", "defaultChecked": false }
+  ],
+  "installConf": {
+    "fileName": "install.conf",
+    "header": "# DemoApp Install Configuration",
+    "template": {
+      "install_path": "{installDir}",
+      "install_editor": "{components.editor}",
+      "app_version": "{productVersion}"
+    }
+  },
+  "flows": {
+    "install": "install.json",
+    "uninstall": "uninstall.json"
+  },
+  "payload": { "source": "dir:payload", "skip": ["*.tmp"] }
+}

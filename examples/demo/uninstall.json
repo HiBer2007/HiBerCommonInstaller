@@ -1,0 +1,8 @@
+{
+  "id": "uninstall",
+  "steps": [
+    { "id": "confirm", "ui": "confirm", "prompt": "Remove DemoApp files from {installDir}?", "abortIfNo": true },
+    { "id": "clean", "type": "clean", "target": "{installDir}" },
+    { "id": "finish", "ui": "finish", "message": "DemoApp uninstalled" }
+  ]
+}

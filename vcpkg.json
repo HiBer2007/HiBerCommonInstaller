@@ -1,0 +1,11 @@
+{
+  "name": "hiber-common-installer",
+  "version": "1.0.0",
+  "description": "Generic installer framework: core + flow + extension host + GUI/TUI/CLI shells (hci)",
+  "dependencies": [
+    "nlohmann-json",
+    "lua",
+    "libzippp",
+    "cpr"
+  ]
+}

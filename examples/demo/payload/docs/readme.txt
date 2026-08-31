@@ -1,0 +1,1 @@
+﻿DemoApp docs - this file lands in <installDir>/docs/readme.txt

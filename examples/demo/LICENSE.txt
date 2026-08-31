@@ -1,0 +1,7 @@
+﻿DemoApp - Demo Product License (placeholder)
+
+This is a demonstration product configuration for the HiBer Common
+Installer Module. Replace this file with the real license text of your
+product.
+
+HiBerCommonInstaller itself is LGPL-2.1 (see repository LICENSE).
