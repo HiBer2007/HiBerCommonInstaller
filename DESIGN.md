@@ -1,6 +1,7 @@
 # HiBerCommonInstaller — 通用安装器框架设计文档（定稿）
 
 > 本文档为 HiBerCommonInstaller 项目的权威设计；实现与文档不一致时以本文档为准并修订本文档。
+> 详细参考请见 [docs/](docs/README.md) 文档库（产品配置 / 流程脚本 / API / 拓展 / 三壳 / 构建 / NSUM 接入 / 踩坑）。
 
 ## 1. 定位
 
