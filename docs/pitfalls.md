@@ -70,7 +70,7 @@
 
 ### 改了 json 不生效
 - 根因：`HCI_PRODUCT_FILES` 内容在 **configure 期**写入 qrc
-- 修法：改 product.json/流程 json 后重跑 `cmake --preset installer-static`（重新 configure）
+- 修法：改 product.json/流程 json 后重跑 configure（重新生成 qrc；宿主侧即重跑其 configure 命令）
 
 ### 路径形式
 - `qrc:/x` 与 `:/x`：资源引擎统一按 `:/x` 处理（内部自行归一化）；外部 API 两种都接受

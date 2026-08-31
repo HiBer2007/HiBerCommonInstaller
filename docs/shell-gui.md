@@ -85,4 +85,4 @@ if(HCI_PRODUCT_FILES)
 
 1. 静默全流程：`hci_gui ... --silent` → exit 0 + 产物核对
 2. 窗口：启动 → 4s 存活 + 有窗口句柄 → CloseMainWindow → exit 0/1 且无崩溃（取消语义 exit 1 正常）
-3. 拓展：`extensions/nsum_args_ext.dll` 存在 → `--with-editor` 生效（install.conf 验证）
+3. 拓展：`extensions/<你的拓展>.dll` 存在 → 专属参数生效（如 `--with-editor` 预选组件）

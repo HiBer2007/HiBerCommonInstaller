@@ -1,6 +1,6 @@
 # CLI 壳（hci_cli）参考
 
-控制台子系统、零 Qt 的安装壳。核心参数 + 拓展参数处理器；JSON 协议沿 NSUM CLI 公约（`=====JSON-BEGIN=====` 块、日志走 stderr）。
+控制台子系统、零 Qt 的安装壳。核心参数 + 拓展参数处理器；`--json` 输出 `=====JSON-BEGIN=====` / `=====JSON-END=====` 标记块、人类日志走 stderr（标记块协议惯例，宿主脚本可与此对接）。
 
 ## 用法
 
@@ -71,9 +71,9 @@ hci_cli [options]
 8. **extensionArgs 路由**（未认领 → exit 2）
 9. FlowRunner（注入 bus/registry/baseDir=流程目录）→ `run` → 退出码
 
-## 与主仓库 NSUM CLI 的关系
+## 与宿主 CLI 的关系
 
-hci_cli 是独立网关（安装器 CLI），与 NeoServerUpdateModpack 主程序的 `info/flow/exec` CLI 无关；两者共享 `=====JSON-BEGIN=====` 标记块惯例（脚本解析同一套习惯）。
+hci_cli 是独立网关（安装器 CLI），与宿主主程序的 CLI 无关；两者可共享 `=====JSON-BEGIN=====` 标记块惯例（脚本解析同一套习惯）。
 
 ## 典型脚本
 

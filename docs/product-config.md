@@ -77,7 +77,7 @@
 - `{productName}` `{company}` `{productVersion}` — product 标量
 - `{installDir}` — 默认取 `defaultInstallPath`（`--path` / 流程 path 页优先）
 - `{tempDir}` `{exeDir}` — 运行时环境
-- `{components.<id>}` — 组件勾选结果（"true"/"false"；NSUM 兼容别名 `{installEditor}`）
+- `{components.<id>}` — 组件勾选结果（"true"/"false"）
 
 这些变量可在 `installConf.template`、步骤参数、`when` 条件中直接使用。
 
@@ -85,7 +85,6 @@
 
 - 最小 demo（目录 payload）：`examples/demo/product.json`
 - 单文件内嵌 demo（qrc payload）：`examples/demo_qrc/product.json`
-- 真实产品（NSUM）：主仓库 `nsum_installer/product.json`（见 [nsum-integration.md](nsum-integration.md)）
 
 ## 注意事项
 

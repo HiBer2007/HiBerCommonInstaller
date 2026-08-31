@@ -13,8 +13,7 @@
 | [shell-cli.md](shell-cli.md) | CLI 壳：参数表、JSON 协议、退出码、交互/静默语义、拓展参数路由 | CLI 使用者/脚本作者 |
 | [shell-gui.md](shell-gui.md) | GUI 壳：入口模型与终端生命周期、8 预设页、PageFactory、静默/测试钩子、qrc 单文件分发 | GUI 集成者 |
 | [shell-tui.md](shell-tui.md) | TUI 壳：ANSI 渲染架构、wcwidth 宽字符、组件集、自动化钩子、字节级验证法 | TUI 使用者 |
-| [build-guide.md](build-guide.md) | 构建指南：依赖、构建选项表、动态/静态 Qt、单文件内嵌发布、installer-static 集成、故障排查 | 构建维护者 |
-| [nsum-integration.md](nsum-integration.md) | NeoServerUpdateModpack 接入指南：submodule 布局、INSTALLER_ONLY 分支、NSUM 配置详解、行为映射、验证方法 | 主仓库维护者 |
+| [build-guide.md](build-guide.md) | 构建指南：依赖、构建选项表、动态/静态 Qt、单文件内嵌发布、宿主集成、故障排查 | 构建维护者 |
 | [pitfalls.md](pitfalls.md) | 踩坑清单：跨 DLL 静态、退出卸载、Lua 语法、qrc 资源、runProcess 引号等（含现象与修法） | 所有开发者 |
 
 ## 顶层文档

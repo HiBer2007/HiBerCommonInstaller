@@ -397,7 +397,7 @@ bool createShortcut(ShortcutKind kind, const std::string& name,
         }
     }
 
-    // name may contain '/' subfolders (e.g. "NeoServer/NeoServer.lnk").
+    // name may contain '/' subfolders (e.g. "MyApp/MyApp.lnk").
     std::wstring rel = s2w(name);
     std::wstring sub;
     size_t slash = rel.find(L'/');

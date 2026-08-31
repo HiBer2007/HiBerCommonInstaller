@@ -1,6 +1,6 @@
 // hci_ext_demo - example extension (dual-loadable DLL, also usable as .hci
 // package). Demonstrates: custom step type registration + product-specific
-// CLI arg handler (--with-editor, the NSUM-style extension param model).
+// CLI arg handler (--with-editor, the product-extension parameter model).
 
 #include "hci/extension.h"
 
@@ -44,7 +44,6 @@ public:
             "--with-editor",
             [](const std::string&, hci::InstallContext& ctx) {
                 ctx.vars().setBool("components.editor", true);
-                ctx.vars().setBool("installEditor", true);
                 return true;
             });
         return true;

@@ -92,4 +92,4 @@ extern "C" __declspec(dllexport) hci::IHciExtension* HciGetExtension(); // 必�
 
 - [README.md](README.md) — 架构总览与里程碑
 - [DESIGN.md](DESIGN.md) — 权威设计文档
-- 主仓库集成：`nsum_installer/` 产品配置、`modules/NsumArgsExt/` 拓展示例（NSUM 专属参数），见主仓库 AGENTS/PLAN
+- [docs/](docs/README.md) — 详细文档库（产品配置/流程脚本/API/拓展/三壳/构建/踩坑）

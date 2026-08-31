@@ -33,7 +33,7 @@
 | `welcome` | — | 欢迎页（产品名 + Powered by banner） | — |
 | `license` | `source`（文本文件或 `qrc:/...`，GUI 需 ResourceReader） | 阅读 + 勾选接受 | —（拒绝 = 流程失败） |
 | `path` | — | 安装路径输入/选择 | `installDir` |
-| `components` | — | 组件勾选（来自 product.components） | `components.<id>`（+ `installEditor` 别名） |
+| `components` | — | 组件勾选（来自 product.components） | `components.<id>` |
 | `option` | `prompt/choices[]/default` | 单选 | `name`（默认=步骤 id）→ 选中序号 |
 | `confirm` | `prompt/defaultYes/abortIfNo/name` | 确认 | `name`（默认=步骤 id）；`abortIfNo=true` 且否 → 流程失败 |
 | `input` | `prompt/name/required` | 文本输入 | `name`；必填输入为空 → 失败 |
@@ -84,7 +84,7 @@
     { "id": "welcome", "ui": "welcome" },
     { "id": "license", "ui": "license", "source": "qrc:/LICENSE.txt" },
     { "id": "components", "ui": "components" },
-    { "id": "gitPlan", "type": "nsum_git_plan",           // 拓展步骤示例
+    { "id": "customPlan", "type": "acme_git_plan",      // 拓展步骤示例
       "when": "vars.gitPlanned ~= 'true'" },
     { "id": "gitDownload", "type": "download", "asset": "git-for-windows/git",
       "variant": "{gitVariant}", "dest": "{tempDir}/neo_git.zip",

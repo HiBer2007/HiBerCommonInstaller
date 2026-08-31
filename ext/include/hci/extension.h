@@ -98,7 +98,7 @@ private:
 #define HCI_REGISTER_EXTENSION(cls) HCI_REGISTER_EXTENSION_IMPL(cls, __COUNTER__)
 
 // Extensions in a shared library / package must export this symbol
-// (__declspec(dllexport) is REQUIRED - see NSUM plugin lessons):
+// (__declspec(dllexport) is REQUIRED - see plugin export lessons):
 //   extern "C" __declspec(dllexport) hci::IHciExtension* HciGetExtension();
 // Drop-in DLLs may ship a <name>.meta.json next to them; packages (.hci)
 // embed meta.json + the dll + assets (ZIP container).

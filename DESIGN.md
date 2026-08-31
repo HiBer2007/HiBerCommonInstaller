@@ -1,12 +1,11 @@
 # HiBerCommonInstaller — 通用安装器框架设计文档（定稿）
 
 > 本文档为 HiBerCommonInstaller 项目的权威设计；实现与文档不一致时以本文档为准并修订本文档。
-> 详细参考请见 [docs/](docs/README.md) 文档库（产品配置 / 流程脚本 / API / 拓展 / 三壳 / 构建 / NSUM 接入 / 踩坑）。
+> 详细参考请见 [docs/](docs/README.md) 文档库（产品配置 / 流程脚本 / API / 拓展 / 三壳 / 构建 / 踩坑）。
 
 ## 1. 定位
 
-通用、高度可复用的安装器框架（含其依赖子模块一起复用）。第一个产品化接入方 = NeoServerUpdateModpack（NSUM），
-作为其安装程序（原 modules/NeoInstaller 的完整替代）。
+通用、高度可复用的安装器框架（含其依赖子模块一起复用）。与具体产品解耦：产品的一切属性经 `product.json` + 流程脚本描述；各接入方的集成细节由各自宿主仓库维护。
 
 - 协议：LGPL-2.1
 - 仓库：`git@github.com:HiBer2007/HiBerCommonInstaller.git`，单仓库多 target
@@ -39,7 +38,7 @@
 
 - 核心零 Qt：C++17 + nlohmann-json + Lua 5.4 + libzippp（vcpkg）
 - GUI 壳依赖 Qt6 + HiBerGUILibCPP（submodule，静态链接）
-- 日志桥接 CommonLoggerCPP 风格：`IConfigurableLogSink` / 导出符号注入（沿 NSUM 插件日志铁律）
+- 日志桥接 CommonLoggerCPP 风格：`IConfigurableLogSink` / 导出符号注入（插件日志注入铁律）
 
 ## 3. 仓库布局
 
@@ -56,7 +55,7 @@ HiBerCommonInstaller/
 ├── cli/                    # hci_cli（CLI 壳 EXE，控制台子系统）
 ├── gui/                    # hci_gui_shell（静态 Qt，预设页 + PageFactory）
 ├── tui/                    # hci_tui_shell（C++ ANSI + wcwidth + 组件库）
-├── extensions/             # 随仓库分发的内置拓展（示例：git-download、nsum-args）
+├── extensions/             # 随仓库分发的内置拓展（示例：git-download、product-args）
 ├── HiBerGUILibCPP/         # submodule（GUI 壳依赖）
 └── examples/               # demo 产品（product.json + flow + 独立构建自证）
 ```
@@ -77,7 +76,7 @@ HiBerCommonInstaller/
 
 ## 5. 入口模型（四式判定）
 
-统一**控制台子系统** + `holdOrReleaseConsole` 铁律（沿主程序 NSUM 同款）：
+统一**控制台子系统** + `holdOrReleaseConsole` 铁律（终端持有/释放判定）：
 
 | 场景 | 判定 | 行为 |
 |---|---|---|
@@ -88,7 +87,7 @@ HiBerCommonInstaller/
 
 - 显式模式参数：`--gui` / `--tui` / `--cli`（核心参数）
 - 参数表 = 核心参数（mode/path/silent/json/help/version…）+ **拓展注册的参数处理器**（capability `cliArgs`，
-  如 NSUM 的 `--with-editor`：命中后置组件变量，核心不感知）
+  如 `--with-editor`：命中后置组件变量，核心不感知）
 - banner：`<产品名>` 大号 ASCII（slant/standard 内置，过长自动降档）→ 下一行 `Powered by HiBer Common Installer Module`
 
 ## 6. 流程控制器 hci_flow
@@ -103,7 +102,7 @@ HiBerCommonInstaller/
     { "id": "extract", "type": "extract", "source": "qrc:/deploy", "target": "{installDir}", "onFail": "abort" },
     { "id": "git",     "type": "download", "asset": "git-for-windows/git", "variant": "MinGit",
       "license": "gpl2", "target": "{installDir}/tools/git" },
-    { "id": "script1", "type": "script", "engine": "lua", "code": "if vars.installEditor then ... end" },
+    { "id": "script1", "type": "script", "engine": "lua", "code": "if vars['components.editor'] == 'true' then ... end" },
     { "id": "shortcut","type": "shortcut", "kind": "desktop", "name": "{productName}.lnk",
       "target": "{installDir}/{mainExe}", "when": "components.editor == true" },
     { "id": "writeconf","type": "template", "file": "install.conf", "header": "# ...",
@@ -140,11 +139,11 @@ public:
 - **三种加载**：
   1. 静态链接嵌入：链接静态库 + `HCI_REGISTER_EXTENSION(cls)` 宏 + 链接清单（`--extensions-static` 列表）
   2. DLL 放置加载：`extensions/` 目录扫描，`extern "C" __declspec(dllexport) hci::IHciExtension* HciGetExtension()`
-     （**必须 dllexport**，沿 NSUM 插件教训）+ 同名 meta.json
+     （**必须 dllexport**，插件导出教训）+ 同名 meta.json
   3. 专有插件包 `.hci` = ZIP 容器（libzippp）：`meta.json`（id/version/entry/sha256/deps/contributions）+ dll + assets；
      加载链：校验 → 解压到 `%LOCALAPPDATA%/<product>/ext-cache/<id>/<version>/`（版本变更换目录）→ `LoadLibrary` → `GetProcAddress(entry)`
 - **通讯**：事件总线（topic publish/subscribe）+ 服务注册表（`api.registerService<T>()` / `api.service<T>()`）
-- 日志注入沿 NSUM 铁律：`HCI_DECLARE_EXTENSION_LOG_SINK("id")` 宏（导出符号），宿主注入 `LogSink`（带 `[id]` 前缀）
+- 日志注入沿用导出符号约定：`HCI_DECLARE_EXTENSION_LOG_SINK("id")` 宏（导出符号），宿主注入 `LogSink`（带 `[id]` 前缀）
 
 ## 8. 三壳
 
@@ -162,7 +161,7 @@ public:
 - 拓展：capability `tuiPanels` 注册面板工厂；与 GUI 共享流程（同 `ui` 字段，各自渲染）
 
 ### CLI 壳
-- 子命令 + 选项；`--json` 输出 `=====JSON-BEGIN=====` / `=====JSON-END=====` 标记块，人类日志走 stderr（沿 NSUM 协议）
+- 子命令 + 选项；`--json` 输出 `=====JSON-BEGIN=====` / `=====JSON-END=====` 标记块，人类日志走 stderr（沿既有标记块协议惯例）
 - 退出码：0 成功 / 1 失败 / 2 参数错误
 - 核心参数：`--gui/--tui/--cli`、`--silent`、`--path <dir>`、`--flow <file>`（指定流程脚本）、`--product <file>`、`--json`、`--help/-h`、`--version/-v`
 - 拓展参数：capability `cliArgs` 处理器（如 `--with-editor`）
@@ -183,16 +182,18 @@ public:
   "uninstall": { "registryKey": "Software/…/…", "displayName": "…" } }
 ```
 
-## 10. NSUM 集成（接入方）
+## 10. 宿主集成模式（接入方）
 
-- 主仓库 `git submodule` 引用（路径 modules/NeoInstaller 指向本仓库）
-- 根 CMake `INSTALLER_ONLY_BUILD` 分支 add_subdirectory；`installer-static` 预设 + `build_installer.ps1`
-  适配：`-DPRODUCT_JSON=<主仓库路径>` + `-DDEPLOY_SOURCE=<build/deploy>`；版本资源由仓库自包含（`ci_add_version_info` + 自带图标）
-- **NSUM 配置放主仓库**：NSUM 的 product.json / 部署规则 / install.conf 键 / Git 下载参数由主仓库提供
-- 行为映射：8 页 → 页面预设；GitChecker/GitDownloader → `download` 步骤执行器（Git 资源规则入 product）；
-  7za 解压 → `extract` 多后端；install.conf → `template` 步骤；快捷方式 → `shortcut` 步骤；
-  `--silent/--with-editor/--use-system-git/--use-bundled-git` → CLI 流程（`--with-editor` 经 NSUM 拓展参数处理器）
-- 验证：独立构建 demo 自证 + 三壳冒烟 + `clone --recursive` 闭环 + NSUM 安装行为不变（功能实测归用户）
+框架与产品解耦；任何宿主可按以下通用模式接入（具体产品的配置与细节由宿主仓库维护）：
+
+- 宿主以 `git submodule`（或 as-subdirectory）引用本仓库，仅编译所需壳（如 `HCI_BUILD_GUI=ON`）
+- 产品配置（`product.json` + 流程脚本 + payload + 许可）全部由 **宿主侧**提供；单文件分发经
+  `HCI_PRODUCT_FILES`（`alias=path` 清单，configure 期固化进 qrc）+ `HCI_QT_STATIC=ON` + 静态 Qt `CMAKE_PREFIX_PATH`
+- 产品专属参数/步骤经**拓展**提供（DLL 放置到 `<壳 exe>/extensions/` 或 .hci 包）——核心零产品感知
+- 版本资源由本仓库自包含；宿主只负责构建编排与部署
+- 验证：独立构建 demo 自证 + 三壳冒烟 + `clone --recursive` 闭环；宿主行为不变由宿主验收
+
+具体示例（含产品配置、行为映射、构建编排）不再收入本仓库——见宿主仓库维护的集成文档。
 
 ## 11. 构建与依赖
 
@@ -210,8 +211,8 @@ public:
 | M2 | hci_ext 拓展主机（三加载 + 服务注册表 + 参数处理器） | |
 | M3 | demo 产品配置 + 独立构建自证 + 三壳 CLI/TUI v1 成形 | |
 | M4 | GUI 壳（预设页 + HiBerGUILib + 静态 Qt 发布链路） | |
-| M5 | NSUM 集成（submodule + product.json + 行为映射 + 主仓库提交） | |
-| M6 | README/usage/模块索引 + clone --recursive 闭环 + 冒烟收尾 | |
+| M5 | 宿主接入（submodule/product/HCI_PRODUCT_FILES/拓展参数处理器） | ✅（实现并验证） |
+| M6 | 文档 + clone --recursive 闭环 + 冒烟收尾 | ✅ |
 
 ## 13. 风险与待办
 

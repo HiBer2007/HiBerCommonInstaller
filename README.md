@@ -1,6 +1,6 @@
 # HiBerCommonInstaller
 
-通用安装器框架（Generic installer framework）：**核心 + 流程控制器 + 拓展主机 + GUI/TUI/CLI 三壳**，高度可复用（含其依赖子模块）。第一个产品化接入方：NeoServerUpdateModpack（NSUM）安装程序。
+通用安装器框架（Generic installer framework）：**核心 + 流程控制器 + 拓展主机 + GUI/TUI/CLI 三壳**，高度可复用（含其依赖子模块）。与产品解耦——一切产品属性由 `product.json` + 流程脚本描述，各接入方集成细节由宿主仓库维护。
 
 - **协议**：LGPL-2.1
 - **命名空间**：`hci`（target 前缀 `hci_`）
@@ -44,7 +44,7 @@ build/cli/hci_cli --product build/examples/demo/product.json --flow install --si
 | M3 | demo 独立构建自证 | ✅ |
 | M4 | GUI 壳（静态 Qt） | ✅ |
 | M5 | TUI 壳 | ✅ |
-| M6 | NSUM 集成 | ✅ |
+| M6 | 宿主接入（submodule/HCI_PRODUCT_FILES/拓展参数） | ✅ |
 | M7 | 文档收尾 | ✅ |
 
 ## 文档库
@@ -56,7 +56,6 @@ build/cli/hci_cli --product build/examples/demo/product.json --flow install --si
 - [docs/extension-dev.md](docs/extension-dev.md) — 拓展开发指南
 - [docs/shell-cli.md](docs/shell-cli.md) / [docs/shell-gui.md](docs/shell-gui.md) / [docs/shell-tui.md](docs/shell-tui.md) — 三壳详细文档
 - [docs/build-guide.md](docs/build-guide.md) — 构建与单文件分发
-- [docs/nsum-integration.md](docs/nsum-integration.md) — NSUM 接入指南
 - [docs/pitfalls.md](docs/pitfalls.md) — 踩坑清单
 
 详见 [DESIGN.md](DESIGN.md)（权威设计文档）与 [usage.md](usage.md)（精简手册）。

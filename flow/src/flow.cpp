@@ -292,8 +292,6 @@ bool FlowRunner::handleUiStep(FlowStep& step, std::string& error)
         if (!ui_->onComponents(product_.components, checked)) { error = "cancelled by user"; return false; }
         for (size_t i = 0; i < product_.components.size(); ++i) {
             ctx_.vars().setBool("components." + product_.components[i].id, checked[i]);
-            if (product_.components[i].id == "editor")
-                ctx_.vars().setBool("installEditor", checked[i]); // NSUM compatibility alias
         }
         return true;
     }

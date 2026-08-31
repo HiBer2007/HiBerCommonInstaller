@@ -25,7 +25,7 @@ public:
 };
 ```
 
-`id()` 建议 `"厂商.产品"` 风格（如 `nsum.args`、`hci.demo`），version 建议 semver。
+`id()` 建议 `"厂商.产品"` 风格（如 `acme.product-args`、`hci.demo`），version 建议 semver。
 
 ## 2. 宿主 API（`HostApi`）
 
@@ -44,7 +44,7 @@ bool hasRegistry() const;              // 宿主是否注入了注册表实例
 ## 3. 注册自定义步骤
 
 ```cpp
-api.registry().registerStep("nsum_git_plan",
+api.registry().registerStep("acme_git_plan",
     [](const nlohmann::json& params, hci::InstallContext& ctx, std::string& error) {
         hci::Vars& v = ctx.vars();
         // ... 读取 params（"editorVariant" 等）、环境，写 ctx.vars() ...
@@ -53,7 +53,7 @@ api.registry().registerStep("nsum_git_plan",
     });
 ```
 
-流程侧：`{ "id": "gitPlan", "type": "nsum_git_plan", "editorVariant": "PortableGit", "when": "..." }`。执行序：内置步骤未命中 → 查注册表 → 仍无 → `unknown step type`。
+流程侧：`{ "id": "gitPlan", "type": "acme_git_plan", "editorVariant": "PortableGit", "when": "..." }`。执行序：内置步骤未命中 → 查注册表 → 仍无 → `unknown step type`。
 
 ## 4. 注册参数处理器（产品专属 CLI 参数）
 
@@ -61,7 +61,6 @@ api.registry().registerStep("nsum_git_plan",
 api.registry().registerCliArg("--with-editor",
     [](const std::string&, hci::InstallContext& ctx) {
         ctx.vars().setBool("components.editor", true);
-        ctx.vars().setBool("installEditor", true);
         return true;                    // false → 宿主报"extension rejected argument"
     });
 ```
@@ -81,7 +80,7 @@ HCI_REGISTER_EXTENSION(MyExtension);   // 展开为静态注册（__COUNTER__ �
 ### 5b. DLL 放置（drop-in）
 
 - DLL 放到 `<壳 exe>/extensions/`，宿主启动自动扫描
-- **必须导出**（NSUM 插件教训：漏 dllexport = 零导出，GetProcAddress 失败）：
+- **必须导出**（插件导出教训：漏 dllexport = 零导出，GetProcAddress 失败）：
 
 ```cpp
 extern "C" __declspec(dllexport) hci::IHciExtension* HciGetExtension()

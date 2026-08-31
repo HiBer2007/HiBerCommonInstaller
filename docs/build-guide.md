@@ -61,14 +61,21 @@ cmake -S . -B build_qrc ... -DHCI_PRODUCT_FILES="$files"
 - **改内嵌内容后必须重跑 configure**（qrc 在 configure 期生成）
 - 产品内嵌时运行：`hci_gui --product qrc:/product.json --flow install [--silent] [--path <dir>]`
 
-## 主仓库集成（installer-static 预设）
+## 宿主集成（作为子目录 / submodule）
 
-主仓库 `CMakePresets.json` 的 `installer-static`：`INSTALLER_ONLY_BUILD=ON + HCI_QT_STATIC=ON + CMAKE_PREFIX_PATH=H:/Qt-static + DEPLOY_SOURCE=build/deploy`；根 CMakeLists INSTALLER_ONLY 分支自动构建 `HCI_PRODUCT_FILES`（deploy 全量 + nsum_installer 文件）。详见 [nsum-integration.md](nsum-integration.md)。
+宿主把本仓库以 git submodule（或 as-subdirectory）接入，在自身根 CMake 中编排：
+
+- 编译所需壳：`set(HCI_BUILD_GUI ON)`（其余 OFF）后 `add_subdirectory(modules/HiBerCommonInstaller)`
+- 传递发布选项：`HCI_QT_STATIC=ON`、静态 Qt 的 `CMAKE_PREFIX_PATH`、`DEPLOY_SOURCE=<宿主构建产物目录>`
+- 组装 `HCI_PRODUCT_FILES`（deploy 全量 + 宿主 product/flows/许可，见上文 alias 语法）——单文件分发由宿主侧完成
+- 拓展 DLL（宿主专属参数/步骤）构建后拷到 `<hci_gui.exe>/extensions/`
+- 版本资源由本仓库自包含，宿主零注入
 
 ```powershell
-cmd /c "vcvars64.bat && cmake --preset installer-static && cmake --build build_installer"
-# 产物：build_installer/modules/HiBerCommonInstaller/gui/hci_gui.exe（+ extensions/nsum_args_ext.dll）
+cmd /c "vcvars64.bat && cmake --preset <宿主预设> && cmake --build <宿主构建目录>"
 ```
+
+具体宿主（如 NeoServerUpdateModpack）的预设名、安装目录、行为映射见其仓库维护的集成文档。
 
 ## 故障排查
 
