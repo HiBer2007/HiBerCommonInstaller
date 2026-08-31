@@ -6,7 +6,7 @@
 |---|---|---|
 | CMake ≥ 3.20 + Ninja | VS18 BuildTools 自带（本机无 PATH cmake） | 路径：`...\18\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe` |
 | vcpkg | H:/vcpkg | manifest 模式；`vcpkg.json` = nlohmann-json, lua, libzippp, cpr（→ libzip/zlib/bzip2/curl/openssl+wil） |
-| Qt6 | 动态 `H:/Qt/6.11.1/msvc2022_64` / 静态 `H:/Qt-static/6.11.1/msvc2022_64` | 仅 GUI 壳需要 |
+| Qt6 | 动态 `H:/Qt/6.11.1/msvc2022_64` / 静态 `H:/Qt-static-rt/6.11.1/msvc2022_64` | 仅 GUI 壳需要 |
 | HiBerGUILibCPP | git submodule（嵌套） | GUI 壳复用 HiBerGUILibrary；`if(NOT TARGET HiBerGUILibrary)` 守卫 |
 
 ## 构建选项
@@ -29,25 +29,25 @@ $cmake = "C:/Program Files (x86)/Microsoft Visual Studio/18/BuildTools/Common7/I
 cmd /c "`"C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat`" && `"$cmake`" -S K:/HiBerCommonInstaller -B build -DCMAKE_TOOLCHAIN_FILE=H:/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_PREFIX_PATH=H:/Qt/6.11.1/msvc2022_64 -DCMAKE_BUILD_TYPE=Debug -G Ninja -DCMAKE_MAKE_PROGRAM=<VS ninja> -DHCI_BUILD_GUI=ON -DHCI_BUILD_TUI=ON -DHIBERGUI_BUILD_EXAMPLES=OFF && `"$cmake`" --build build"
 ```
 
-产物：`build/cli/hci_cli.exe`、`build/gui/hci_gui.exe`（windeployqt 自动部署 Qt DLL）、`build/tui/hci_tui.exe`；vcpkg 运行时 DLL 自动拷到 exe 旁。
+产物：`build/cli/hci_cli.exe`、`build/gui/HCInstaller_Template_<version>.exe`（windeployqt 自动部署 Qt DLL）、`build/tui/hci_tui.exe`；vcpkg 运行时 DLL 自动拷到 exe 旁。
 
 ## 静态 Qt 构建（发布单文件）
 
 静态 Qt 需源码构建（vcpkg 已移除 qt6 port）：
 
 ```bat
-:: qtbase 静态构建（本机已就绪 H:/Qt-static/6.11.1/msvc2022_64；命令留档）
+:: qtbase 静态构建（本机已就绪 H:/Qt-static-rt/6.11.1/msvc2022_64；命令留档）
 call vcvars64.bat
 cd /d H:\Qt\6.11.1\Src\qtbase && mkdir build-static && cd build-static
 ..\configure.bat -static -release -opensource -confirm-license ^
-  -prefix H:/Qt-static/6.11.1/msvc2022_64 -platform win32-msvc ^
+  -prefix H:/Qt-static-rt/6.11.1/msvc2022_64 -platform win32-msvc -static-runtime -no-icu ^
   -nomake examples -nomake tests -no-opengl -schannel
 cmake --build . --parallel && cmake --install .
 ```
 
 要点：`-schannel` 规避 OpenSSL/perl 依赖；`-no-opengl` 提速；install 后 `lib/Qt6Config.cmake` 即 `CMAKE_PREFIX_PATH`。
 
-应用侧：`-DHCI_BUILD_GUI=ON -DHCI_QT_STATIC=ON -DCMAKE_PREFIX_PATH=H:/Qt-static/6.11.1/msvc2022_64 -DCMAKE_BUILD_TYPE=Release`；产物单一 `hci_gui.exe`（实测约 21.8MB，无 Qt*.dll、无 platforms/）。
+应用侧：`-DHCI_BUILD_GUI=ON -DHCI_QT_STATIC=ON -DCMAKE_PREFIX_PATH=H:/Qt-static-rt/6.11.1/msvc2022_64 -DCMAKE_BUILD_TYPE=Release`；产物单一 `HCInstaller_Template_<version>.exe`（实测约 21.8MB，无 Qt*.dll、无 platforms/）。
 
 ## 单文件内嵌分发（HCI_PRODUCT_FILES）
 
@@ -68,7 +68,7 @@ cmake -S . -B build_qrc ... -DHCI_PRODUCT_FILES="$files"
 - 编译所需壳：`set(HCI_BUILD_GUI ON)`（其余 OFF）后 `add_subdirectory(modules/HiBerCommonInstaller)`
 - 传递发布选项：`HCI_QT_STATIC=ON`、静态 Qt 的 `CMAKE_PREFIX_PATH`、`DEPLOY_SOURCE=<宿主构建产物目录>`
 - 组装 `HCI_PRODUCT_FILES`（deploy 全量 + 宿主 product/flows/许可，见上文 alias 语法）——单文件分发由宿主侧完成
-- 拓展 DLL（宿主专属参数/步骤）构建后拷到 `<hci_gui.exe>/extensions/`
+- 拓展 DLL（宿主专属参数/步骤）构建后拷到 `<HCInstaller_Template_<version>.exe>/extensions/`
 - 版本资源由本仓库自包含，宿主零注入
 
 ```powershell

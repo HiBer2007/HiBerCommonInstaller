@@ -25,7 +25,7 @@ build/cli/hci_cli.exe --product ... --flow uninstall --silent --path <dir>
 cmake -S . -B build_qrc -DHCI_BUILD_GUI=ON -DHCI_BUILD_CLI=OFF -DHCI_BUILD_EXAMPLES=OFF `
       "-DHCI_PRODUCT_FILES=product.json=...;install.json=...;deploy/*=...;..."  # alias=path 语法
 cmake --build build_qrc --target hci_gui
-build_qrc/gui/hci_gui.exe --product qrc:/product.json --flow install --silent --path <dir>
+build_qrc/gui/HCInstaller_Template_<version>.exe --product qrc:/product.json --flow install --silent --path <dir>
 ```
 
 产品/流程放 qrc 后：`--product qrc:/product.json`、flow 相对名自动解析为 `qrc:/` 基准。
