@@ -6,6 +6,7 @@
     "nlohmann-json",
     "lua",
     "libzippp",
-    "cpr"
+    "cpr",
+    "webview2"
   ]
 }

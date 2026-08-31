@@ -1,0 +1,3 @@
+[submodule "HiBerGUILibCPP"]
+	path = HiBerGUILibCPP
+	url = git@github.com:HiBer2007/HiBerGUILibCPP.git

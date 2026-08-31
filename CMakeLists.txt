@@ -1,4 +1,4 @@
-﻿# HiBerCommonInstaller - generic installer framework (core + flow + ext + shells)
+# HiBerCommonInstaller - generic installer framework (core + flow + ext + shells)
 cmake_minimum_required(VERSION 3.20)
 project(HiBerCommonInstaller VERSION 1.0.0 LANGUAGES CXX)
 
@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Options
 # ------------------------------------------------------------------
 option(HCI_BUILD_CLI   "Build hci_cli shell (console)"            ON)
-option(HCI_BUILD_GUI   "Build hci_gui_shell (static Qt + HiBerGUI)" OFF)
+option(HCI_BUILD_GUI   "Build hci_gui_shell (Qt + HiBerGUI)"       OFF)
 option(HCI_BUILD_TUI   "Build hci_tui_shell (C++ ANSI)"           OFF)
 option(HCI_BUILD_EXAMPLES "Build examples (demo product)"         ON)
 option(HCI_CORE_SHARED "Build hci_core as shared library"         OFF)
@@ -79,8 +79,12 @@ if(HCI_BUILD_CLI)
     add_subdirectory(cli)
 endif()
 
+if(HCI_BUILD_GUI)
+    add_subdirectory(gui)
+endif()
+
 if(HCI_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-# GUI / TUI shells arrive in later milestones (M4 / M5).
+# TUI shell arrives in M5.
