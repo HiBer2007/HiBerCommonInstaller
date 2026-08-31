@@ -41,6 +41,7 @@ struct GuiOptions {
     bool silent = false;
     bool help = false;
     bool version = false;
+    std::vector<std::string> extensionArgs; // unknown args -> extension handlers
 };
 
 bool parseArgs(int argc, char** argv, GuiOptions& o, std::string& err)
@@ -54,8 +55,9 @@ bool parseArgs(int argc, char** argv, GuiOptions& o, std::string& err)
         if (a == "--path" && i + 1 < argc) { o.installPath = argv[++i]; continue; }
         if (a == "--product" && i + 1 < argc) { o.productJson = argv[++i]; continue; }
         if (a == "--flow" && i + 1 < argc) { o.flow = argv[++i]; continue; }
-        err = "unknown option: " + a;
-        return false;
+        // Unknown args are routed to extension cliArgs handlers (e.g. --with-editor).
+        o.extensionArgs.push_back(a);
+        continue;
     }
     return true;
 }
@@ -155,7 +157,8 @@ int main(int argc, char* argv[])
     app.setApplicationName(QString::fromUtf8(product.productName.c_str()));
     app.setOrganizationName(QString::fromUtf8(product.orgName.c_str()));
 
-    gui::GuiShell shell(product, flowFile, opt.installPath, opt.silent);
+    gui::GuiShell shell(product, flowFile, opt.installPath, opt.silent,
+                        opt.extensionArgs);
     if (!opt.silent) shell.show(); // silent: headless run, no window
     return shell.run();
 }

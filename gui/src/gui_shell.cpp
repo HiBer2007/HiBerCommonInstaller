@@ -49,8 +49,10 @@ std::string dirOf(const std::string& p)
 
 // ------------------------------------------------------------------
 GuiShell::GuiShell(const hci::ProductConfig& product, const std::string& flowFile,
-                   const std::string& installPath, bool silent, QWidget* parent)
-    : QWidget(parent), product_(product), flowFile_(flowFile), silent_(silent)
+                   const std::string& installPath, bool silent,
+                   std::vector<std::string> extensionArgs, QWidget* parent)
+    : QWidget(parent), product_(product), flowFile_(flowFile), silent_(silent),
+      extensionArgs_(std::move(extensionArgs))
 {
     if (!installPath.empty()) ctx_.vars().set("installDir", installPath);
 
@@ -150,6 +152,21 @@ int GuiShell::run()
     loader.loadStatic();
     std::string extDir = port::joinPath(port::exeDir(), "extensions");
     if (fs::exists(fs::u8path(extDir))) loader.loadDirectory(extDir);
+
+    // Route unknown args to extension cliArgs handlers; reject unhandled ones.
+    for (auto& a : extensionArgs_) {
+        if (registry.hasCliArg(a)) {
+            if (!registry.handleCliArg(a, ctx_)) {
+                std::cerr << "Error: extension rejected argument: " << a << "\n";
+                loader.shutdownAll();
+                return 1;
+            }
+        } else {
+            std::cerr << "Error: unknown option: " << a << "\n";
+            loader.shutdownAll();
+            return 1;
+        }
+    }
 
     hci::registerQtSources();
 

@@ -78,6 +78,7 @@ class GuiShell : public QWidget {
 public:
     GuiShell(const hci::ProductConfig& product, const std::string& flowFile,
              const std::string& installPath, bool silent = false,
+             std::vector<std::string> extensionArgs = {},
              QWidget* parent = nullptr);
     ~GuiShell() override;
 
@@ -113,6 +114,7 @@ private:
     hci::InstallContext ctx_;
     bool cancelled_ = false;
     bool silent_ = false;
+    std::vector<std::string> extensionArgs_;
 
     QLabel* titleLabel_ = nullptr;
     QStackedWidget* stack_ = nullptr;

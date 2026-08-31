@@ -152,6 +152,8 @@ int FlowRunner::run(FlowSpec& flow)
     if (!ctx_.vars().has("company")) ctx_.vars().set("company", product_.company);
     if (!ctx_.vars().has("productVersion")) ctx_.vars().set("productVersion", product_.version);
     if (!ctx_.vars().has("installDir")) ctx_.vars().set("installDir", product_.defaultInstallPath);
+    if (!ctx_.vars().has("tempDir")) ctx_.vars().set("tempDir", port::tempDir());
+    if (!ctx_.vars().has("exeDir")) ctx_.vars().set("exeDir", port::exeDir());
 
     for (size_t i = 0; i < flow.steps.size(); ++i) {
         if (ctx_.cancelled()) {
