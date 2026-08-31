@@ -1,15 +1,16 @@
-﻿# hci_core - generic install core, zero Qt (C++17 + nlohmann-json + Lua + libzippp + cpr)
+# hci_core - generic install core, zero Qt (C++17 + nlohmann-json + Lua + libzippp + cpr)
 add_library(hci_core
-    src/log.cpp
-    src/vars.cpp
     src/bus.cpp
     src/context.cpp
+    src/entry.cpp
+    src/exec.cpp
+    src/extension_registry.cpp
+    src/log.cpp
     src/payload.cpp
+    src/port.cpp
     src/product.cpp
     src/script_lua.cpp
-    src/exec.cpp
-    src/port.cpp
-    src/entry.cpp
+    src/vars.cpp
 )
 if(HCI_CORE_SHARED)
     set_target_properties(hci_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)

@@ -7,6 +7,7 @@
 
 #include "hci/bus.h"
 #include "hci/context.h"
+#include "hci/extension_registry.h"
 #include "hci/product.h"
 #include "hci/script.h"
 
@@ -82,6 +83,9 @@ public:
                IFlowUi* ui, IScriptEngine* script);
 
     void setEventBus(EventBus* bus) { bus_ = bus; } // optional (M2 wiring)
+    // Explicit extension registry (host-owned; extension DLLs register into the
+    // SAME instance). Required for extension step types.
+    void setRegistry(ExtensionRegistry* registry) { registry_ = registry; }
     // Base directory for relative paths in flow steps (flow file location).
     void setBaseDir(const std::string& dir) { baseDir_ = dir; }
 
@@ -90,7 +94,8 @@ public:
 
 private:
     bool runStep(FlowSpec& flow, FlowStep& step, size_t& index, std::string& error);
-    bool evalWhen(const std::string& expr, std::string& error);
+    // Returns false on condition error; 'shouldRun' = false means skip the step.
+    bool evalWhen(const std::string& expr, bool& shouldRun, std::string& error);
     bool handleUiStep(FlowStep& step, std::string& error);
     bool handleExecStep(FlowStep& step, std::string& error);
     std::string resolvePath(const std::string& p) const;
@@ -100,6 +105,7 @@ private:
     IFlowUi* ui_;
     IScriptEngine* script_;
     EventBus* bus_ = nullptr;
+    ExtensionRegistry* registry_ = nullptr;
     std::string baseDir_;
 };
 

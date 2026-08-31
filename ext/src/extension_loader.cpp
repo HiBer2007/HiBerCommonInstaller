@@ -192,8 +192,9 @@ std::wstring s2w(const std::string& s)
 
 // ------------------------------------------------------------------
 ExtensionLoader::ExtensionLoader(EventBus* bus, ServiceRegistry* services,
-                                 InstallContext* ctx, const ProductConfig* product)
-    : api_(bus, services, ctx, product)
+                                 InstallContext* ctx, const ProductConfig* product,
+                                 ExtensionRegistry* registry)
+    : api_(bus, services, ctx, product, registry)
 {
 }
 
@@ -204,6 +205,9 @@ ExtensionLoader::~ExtensionLoader()
 
 void ExtensionLoader::shutdownAll()
 {
+    // Tear down registries BEFORE unloading extension modules: the registered
+    // handlers (std::function) live in the DLL code sections.
+    if (api_.hasRegistry()) api_.registry().clear();
     for (auto& e : loaded_) {
         try { e->shutdown(); } catch (...) {}
         e.reset();
@@ -286,7 +290,10 @@ bool ExtensionLoader::loadDll(const std::string& dllPath, std::string& err)
         ::FreeLibrary(h);
         return false;
     }
-    std::shared_ptr<IHciExtension> sp(ext, [h](IHciExtension* p) { delete p; ::FreeLibrary(h); });
+    std::shared_ptr<IHciExtension> sp(ext, [](IHciExtension* p) { delete p; });
+    // NOTE: the module stays loaded until process exit (FreeLibrary skipped on
+    // purpose: unloading while std::function registries / CRT state still live
+    // in the host caused exit-time access violations in Debug builds).
     if (!sp->init(api_)) {
         err = "init failed: " + std::string(ext->id());
         return false;

@@ -49,6 +49,7 @@ struct CliOptions {
     bool jsonOut = false;
     bool verbose = false;
     std::string extensionsDir;
+    std::vector<std::string> extensionArgs; // unknown args -> extension handlers
 };
 
 void printUsage(std::ostream& os)
@@ -86,8 +87,9 @@ bool parseArgs(int argc, char** argv, CliOptions& o, std::string& err)
         if (a == "--product" && i + 1 < argc) { o.productJson = argv[++i]; continue; }
         if (a == "--flow" && i + 1 < argc) { o.flow = argv[++i]; continue; }
         if (a == "--extensions" && i + 1 < argc) { o.extensionsDir = argv[++i]; continue; }
-        err = "unknown option: " + a;
-        return false;
+        // Unknown args are routed to extension cliArgs handlers (M2).
+        o.extensionArgs.push_back(a);
+        continue;
     }
     return true;
 }
@@ -316,13 +318,29 @@ int main(int argc, char* argv[])
     auto script = createLuaEngine();
     EventBus bus;
     ServiceRegistry services;
+    ExtensionRegistry registry; // host-owned; shared with loader + runner
 
-    ExtensionLoader loader(&bus, &services, &ctx, &product);
+    ExtensionLoader loader(&bus, &services, &ctx, &product, &registry);
     loader.loadStatic();
     std::string extDir = !opt.extensionsDir.empty()
         ? opt.extensionsDir
         : port::joinPath(port::exeDir(), "extensions");
     if (fs::exists(fs::u8path(extDir))) loader.loadDirectory(extDir);
+
+    // Route unknown args to extension cliArgs handlers; reject unhandled ones.
+    for (auto& a : opt.extensionArgs) {
+        if (registry.hasCliArg(a)) {
+            std::string argErr;
+            if (!registry.handleCliArg(a, ctx)) {
+                std::cerr << "Error: extension rejected argument: " << a << "\n";
+                return 2;
+            }
+        } else {
+            std::cerr << "Error: unknown option: " << a << "\n\n";
+            printUsage(std::cerr);
+            return 2;
+        }
+    }
 
     FlowSpec flow;
     try {
@@ -335,6 +353,7 @@ int main(int argc, char* argv[])
     CliUi ui(opt.silent, opt.jsonOut, std::cout);
     FlowRunner runner(product, ctx, &ui, script.get());
     runner.setEventBus(&bus);
+    runner.setRegistry(&registry);
     runner.setBaseDir(dirOf(flowFile));
 
     int rc = runner.run(flow);

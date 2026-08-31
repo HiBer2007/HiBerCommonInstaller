@@ -1,11 +1,13 @@
-﻿#pragma once
+#pragma once
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "hci/bus.h"
 #include "hci/context.h"
+#include "hci/extension_registry.h"
 #include "hci/log.h"
 #include "hci/product.h"
 
@@ -22,12 +24,14 @@ struct HciCapabilities {
 };
 
 // HostApi: the surface an extension reaches (bus / services / context /
-// product / logging). Extensions call api.* during init() and at runtime.
+// product / logging / registries). Extensions call api.* during init() and
+// at runtime.
 class HostApi {
 public:
     HostApi(EventBus* bus, ServiceRegistry* services, InstallContext* ctx,
-            const ProductConfig* product)
-        : bus_(bus), services_(services), ctx_(ctx), product_(product) {}
+            const ProductConfig* product, ExtensionRegistry* registry)
+        : bus_(bus), services_(services), ctx_(ctx), product_(product),
+          registry_(registry) {}
 
     EventBus& bus() { return *bus_; }
     ServiceRegistry& services() { return *services_; }
@@ -36,11 +40,21 @@ public:
 
     void log(LogLevel lv, const std::string& msg) const { Log::instance().write(lv, msg); }
 
+    // Extension-facing registries (step types / cli args). When the host
+    // injected a registry, extensions register into THAT instance (the static
+    // fallback exists only for library-mode convenience).
+    ExtensionRegistry& registry()
+    {
+        return registry_ ? *registry_ : ExtensionRegistry::instance();
+    }
+    bool hasRegistry() const { return registry_ != nullptr; }
+
 private:
     EventBus* bus_;
     ServiceRegistry* services_;
     InstallContext* ctx_;
     const ProductConfig* product_;
+    ExtensionRegistry* registry_;
 };
 
 class IHciExtension {
@@ -99,7 +113,7 @@ private:
 class ExtensionLoader {
 public:
     ExtensionLoader(EventBus* bus, ServiceRegistry* services, InstallContext* ctx,
-                    const ProductConfig* product);
+                    const ProductConfig* product, ExtensionRegistry* registry = nullptr);
     ~ExtensionLoader();
 
     void loadStatic();

@@ -1,7 +1,8 @@
-﻿#include "hci/flow.h"
+#include "hci/flow.h"
 
 #include "hci/entry.h"
 #include "hci/exec.h"
+#include "hci/extension_registry.h"
 #include "hci/log.h"
 #include "hci/payload.h"
 #include "hci/port.h"
@@ -186,9 +187,9 @@ std::string FlowRunner::resolvePath(const std::string& p) const
     return p;
 }
 
-bool FlowRunner::evalWhen(const std::string& expr, std::string& error)
+bool FlowRunner::evalWhen(const std::string& expr, bool& shouldRun, std::string& error)
 {
-    if (expr.empty()) return true;
+    if (expr.empty()) { shouldRun = true; return true; }
     if (!script_) {
         error = "condition requires a script engine (when)";
         return false;
@@ -198,13 +199,27 @@ bool FlowRunner::evalWhen(const std::string& expr, std::string& error)
         error = "condition eval failed: " + out;
         return false;
     }
-    return truthy(out);
+    shouldRun = truthy(out);
+    return true;
 }
 
 bool FlowRunner::runStep(FlowSpec& flow, FlowStep& step, size_t& index,
                          std::string& error)
 {
-    if (!evalWhen(step.when, error)) return false;
+    bool shouldRun = true;
+    if (!evalWhen(step.when, shouldRun, error)) return false;
+    if (!shouldRun) {
+        // Condition false: skip this step (not an error).
+        if (bus_) bus_->publish("hci/step", {{"id", step.id}, {"state", "skipped"}});
+        if (ui_) ui_->onProgress(step.id + " (skipped)", -1, "");
+        if (!step.next.empty()) {
+            if (step.next == "__end") { index = flow.steps.size(); return true; }
+            for (size_t j = 0; j < flow.steps.size(); ++j) {
+                if (flow.steps[j].id == step.next) { index = j - 1; break; }
+            }
+        }
+        return true;
+    }
     if (bus_) bus_->publish("hci/step", {{"id", step.id}, {"state", "start"}});
 
     bool ok = false;
@@ -253,8 +268,15 @@ bool FlowRunner::handleUiStep(FlowStep& step, std::string& error)
     }
     if (step.ui == "components") {
         std::vector<bool> checked(product_.components.size(), false);
-        for (size_t i = 0; i < product_.components.size(); ++i)
-            checked[i] = product_.components[i].defaultChecked;
+        for (size_t i = 0; i < product_.components.size(); ++i) {
+            // Pre-set values (CLI --with-* or extension arg handlers) win over
+            // product defaults; interactive UI choice always wins afterwards.
+            std::string varName = "components." + product_.components[i].id;
+            if (ctx_.vars().has(varName))
+                checked[i] = ctx_.vars().getBool(varName);
+            else
+                checked[i] = product_.components[i].defaultChecked;
+        }
         if (!ui_->onComponents(product_.components, checked)) { error = "cancelled by user"; return false; }
         for (size_t i = 0; i < product_.components.size(); ++i) {
             ctx_.vars().setBool("components." + product_.components[i].id, checked[i]);
@@ -488,6 +510,17 @@ bool FlowRunner::handleExecStep(FlowStep& step, std::string& error)
         return exec::registryWriteString(key, name, value);
     }
 
+    // Extension-provided step types (M2 wiring).
+    if (registry_) {
+        std::string extErr;
+        if (registry_->runStep(step.type, step.params, ctx_, extErr)) {
+            return true;
+        }
+        if (!extErr.empty()) {
+            error = "step '" + step.type + "': " + extErr;
+            return false;
+        }
+    }
     error = "unknown step type: " + step.type;
     return false;
 }
@@ -528,7 +561,9 @@ int runInstall(const ProductConfig& product, const std::string& flowPath,
         FlowSpec flow = FlowSpec::loadFile(resolveFlowPath(flowPath));
         auto script = createLuaEngine();
         NullUi ui;
+        ExtensionRegistry registry;
         FlowRunner runner(const_cast<ProductConfig&>(product), ctx, &ui, script.get());
+        runner.setRegistry(&registry);
         return runner.run(flow);
     } catch (const std::exception& e) {
         Log::Error(std::string("runInstall: ") + e.what());
