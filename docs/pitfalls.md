@@ -79,7 +79,7 @@
 ## 构建/集成
 
 ### 主仓库改了 HCI 代码不生效
-- 根因：主仓库 `build_installer` 编译的是 **submodule checkout**（`modules/HiBerCommonInstaller`），不是 HCI 工作树
+- 根因：主仓库 `build_nsum_installer` 编译的是 **submodule checkout**（`modules/HiBerCommonInstaller`），不是 HCI 工作树
 - 修法：HCI 仓库提交 push → `git submodule update --remote modules/HiBerCommonInstaller` → 重建
 
 ### 静态 Qt 缺失平台插件
@@ -90,9 +90,9 @@
 - `vcpkg install qt6[...]` 报 `qt6 does not exist`（registry 已删除 Qt ports）
 - 静态 Qt 一律源码构建（`-static -release -schannel -no-opengl`，见 build-guide.md）；`-schannel` 免 OpenSSL/perl
 
-### build_installer 旧缓存路径
+### build_nsum_installer 旧缓存路径
 - 工作区迁移后 configure 报 `CMakeCache.txt ... different than the directory ...`
-- 修法：删 `build_installer/` 整目录重配
+- 修法：删 `build_nsum_installer/` 整目录重配
 
 ### cmd 里塞 PowerShell 管道
 - 现象：`cmd /c "... && ... | Select-Object"` 报 `'Select-Object' 不是内部或外部命令`
