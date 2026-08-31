@@ -19,6 +19,9 @@ class ProgressCard;
 }
 
 namespace hci {
+// Registers the "qrc" deploy source kind (implemented in qrc_source.cpp).
+bool registerQtSources();
+
 namespace gui {
 
 class GuiShell;
@@ -45,7 +48,7 @@ void unregisterAllPages();
 // on nested event loops until the user clicks Next (or cancels).
 class GuiFlowUi : public hci::IFlowUi {
 public:
-    GuiFlowUi(GuiShell& shell);
+    GuiFlowUi(GuiShell& shell, bool silent = false);
 
     bool onWelcome(const std::string& productName,
                    const hci::ProductConfig& product) override;
@@ -74,7 +77,8 @@ class GuiShell : public QWidget {
     Q_OBJECT
 public:
     GuiShell(const hci::ProductConfig& product, const std::string& flowFile,
-             const std::string& installPath, QWidget* parent = nullptr);
+             const std::string& installPath, bool silent = false,
+             QWidget* parent = nullptr);
     ~GuiShell() override;
 
     // Runs the flow; returns process exit code (0 success / 1 failure).
@@ -96,6 +100,7 @@ public:
     hci::InstallContext& context() { return ctx_; }
     hci::ProductConfig& product() { return product_; }
     const std::string& flowFile() const { return flowFile_; }
+    bool silent() const { return silent_; }
 
 protected:
     void closeEvent(QCloseEvent* e) override;
@@ -107,6 +112,7 @@ private:
     std::string flowFile_;
     hci::InstallContext ctx_;
     bool cancelled_ = false;
+    bool silent_ = false;
 
     QLabel* titleLabel_ = nullptr;
     QStackedWidget* stack_ = nullptr;

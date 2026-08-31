@@ -10,6 +10,8 @@ set(GUI_SOURCES
     src/main.cpp
     src/gui_shell.cpp
     src/pages.cpp
+    src/qrc_source.cpp
+    src/resource_utils.cpp
 )
 
 qt_add_executable(hci_gui ${GUI_SOURCES})
@@ -34,6 +36,31 @@ target_link_libraries(hci_gui PRIVATE
 )
 
 hci_add_version_info(hci_gui "HiBer Common Installer GUI" "HiBer Common Installer Module")
+
+# Optional embedded product files (single-file distribution):
+# HCI_PRODUCT_FILES supports "alias=path" entries; alias defaults to basename.
+# Example: product.json=<file>;deploy/...=<file>;...
+if(HCI_PRODUCT_FILES)
+    set(_prod_qrc "${CMAKE_CURRENT_BINARY_DIR}/hci_product.qrc")
+    file(WRITE "${_prod_qrc}" "<RCC>\n  <qresource prefix=\"/\">\n")
+    foreach(_f ${HCI_PRODUCT_FILES})
+        set(_alias "")
+        if(_f MATCHES "^(.*)=(.*)$")
+            set(_alias "${CMAKE_MATCH_1}")
+            set(_f "${CMAKE_MATCH_2}")
+        endif()
+        if(_alias STREQUAL "")
+            get_filename_component(_alias "${_f}" NAME)
+        endif()
+        file(APPEND "${_prod_qrc}" "    <file alias=\"${_alias}\">${_f}</file>\n")
+    endforeach()
+    file(APPEND "${_prod_qrc}" "  </qresource>\n</RCC>\n")
+    target_sources(hci_gui PRIVATE "${_prod_qrc}")
+    set_target_properties(hci_gui PROPERTIES AUTORCC ON)
+    # Resource registration happens via Q_INIT_RESOURCE(hci_product) in main.cpp.
+    target_compile_definitions(hci_gui PRIVATE HCI_EMBED_PRODUCT=1)
+    message(STATUS "hci_gui: embedding product files: ${HCI_PRODUCT_FILES}")
+endif()
 
 # Static Qt handling (HCI_QT_STATIC=ON or vcpkg static triplet).
 if(HCI_QT_STATIC OR VCPKG_TARGET_TRIPLET MATCHES "static")

@@ -11,8 +11,11 @@
 #include "hci/product.h"
 
 #include "gui_shell.h"
+#include "resource_utils.h"
 
 #include <QApplication>
+#include <QDir>
+#include <QFile>
 
 #include <filesystem>
 #include <iostream>
@@ -35,6 +38,7 @@ struct GuiOptions {
     std::string productJson = "product.json";
     std::string flow;
     std::string installPath;
+    bool silent = false;
     bool help = false;
     bool version = false;
 };
@@ -46,6 +50,7 @@ bool parseArgs(int argc, char** argv, GuiOptions& o, std::string& err)
         if (a == "--help" || a == "-h") { o.help = true; continue; }
         if (a == "--version" || a == "-v") { o.version = true; continue; }
         if (a == "--gui") continue;
+        if (a == "--silent" || a == "-s") { o.silent = true; continue; }
         if (a == "--path" && i + 1 < argc) { o.installPath = argv[++i]; continue; }
         if (a == "--product" && i + 1 < argc) { o.productJson = argv[++i]; continue; }
         if (a == "--flow" && i + 1 < argc) { o.flow = argv[++i]; continue; }
@@ -102,12 +107,29 @@ int main(int argc, char* argv[])
     }
     port::holdOrReleaseConsole();
 
+    // QApplication must exist before loading qrc: resources.
+    QApplication app(argc, argv);
+#ifdef HCI_EMBED_PRODUCT
+    Q_INIT_RESOURCE(hci_product);
+#endif
+
     ProductConfig product;
     std::string productPath, flowFile;
     try {
-        productPath = absolutize(opt.productJson, port::currentDir());
-        product = ProductConfig::loadFile(productPath);
-        std::string base = dirOf(productPath);
+        productPath = opt.productJson;
+        bool fromQrc = productPath.rfind("qrc:", 0) == 0;
+        if (!fromQrc) productPath = absolutize(productPath, port::currentDir());
+        if (fromQrc) {
+            std::string json;
+            if (!gui::readResource(productPath, json)) {
+                std::cerr << "Error: cannot read product resource: " << productPath << "\n";
+                return 2;
+            }
+            product = ProductConfig::loadString(json);
+        } else {
+            product = ProductConfig::loadFile(productPath);
+        }
+        std::string base = fromQrc ? std::string("qrc:/") : dirOf(productPath);
         std::string f = opt.flow;
         if (f.empty() || f == "install") f = product.flows.install;
         else if (f == "uninstall") f = product.flows.uninstall;
@@ -115,7 +137,13 @@ int main(int argc, char* argv[])
             std::cerr << "Error: no flow defined (--flow or product flows.install)\n";
             return 2;
         }
-        flowFile = absolutize(f, base);
+        if (f.rfind("qrc:", 0) == 0) {
+            flowFile = f;
+        } else if (fromQrc) {
+            flowFile = base + f; // resolve relative flow names against qrc:/ 
+        } else {
+            flowFile = absolutize(f, base);
+        }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
         return 2;
@@ -124,11 +152,10 @@ int main(int argc, char* argv[])
     if (port::hasConsole())
         std::cout << entry::renderBanner(product.productName, product.bannerFont);
 
-    QApplication app(argc, argv);
     app.setApplicationName(QString::fromUtf8(product.productName.c_str()));
     app.setOrganizationName(QString::fromUtf8(product.orgName.c_str()));
 
-    gui::GuiShell shell(product, flowFile, opt.installPath);
-    shell.show();
+    gui::GuiShell shell(product, flowFile, opt.installPath, opt.silent);
+    if (!opt.silent) shell.show(); // silent: headless run, no window
     return shell.run();
 }

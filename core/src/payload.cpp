@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 
@@ -161,6 +162,19 @@ private:
 };
 
 // ------------------------------------------------------------------
+namespace {
+std::map<std::string, DeploySourceFactory>& deployFactories()
+{
+    static std::map<std::string, DeploySourceFactory> f;
+    return f;
+}
+} // namespace
+
+void registerDeploySourceFactory(const std::string& kind, DeploySourceFactory factory)
+{
+    deployFactories()[kind] = std::move(factory);
+}
+
 std::shared_ptr<IDeploySource> makeDirSource(const std::string& rootPath)
 {
     return std::make_shared<DirSource>(rootPath);
@@ -179,9 +193,12 @@ std::shared_ptr<IDeploySource> makeDeploySource(const DeploySpec& spec,
         return makeDirSource(s.substr(4));
     if (s.rfind("zip:", 0) == 0)
         return makeZipSource(s.substr(4));
-    if (s.rfind("qrc:", 0) == 0) {
-        error = "qrc payload requires the Qt bridge (hci_qtbridge); not built in core";
-        return nullptr;
+    size_t colon = s.find(':');
+    if (colon != std::string::npos) {
+        std::string kind = s.substr(0, colon);
+        auto it = deployFactories().find(kind);
+        if (it != deployFactories().end())
+            return it->second(s.substr(colon + 1), error);
     }
     error = "unsupported payload source: " + s;
     return nullptr;

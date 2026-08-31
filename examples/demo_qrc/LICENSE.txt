@@ -1,0 +1,6 @@
+DemoApp QR - Embedded Product License (placeholder)
+
+This product is distributed as a single self-contained executable with the
+license, flow definitions and payload embedded via Qt resources.
+
+HiBerCommonInstaller itself is LGPL-2.1 (see repository LICENSE).

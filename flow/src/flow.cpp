@@ -254,7 +254,17 @@ bool FlowRunner::handleUiStep(FlowStep& step, std::string& error)
     }
     if (step.ui == "license") {
         std::string src = step.params.value("source", "");
-        std::string text = (src.rfind("qrc:", 0) == 0) ? "" : readText(resolvePath(src));
+        std::string text;
+        if (src.rfind("qrc:", 0) == 0) {
+            if (resourceReader_) {
+                if (!resourceReader_(src.substr(4), text)) { error = "cannot read license resource"; return false; }
+            } else {
+                error = "qrc license requires a resource reader (GUI shell)";
+                return false;
+            }
+        } else {
+            text = readText(resolvePath(src));
+        }
         bool accepted = false;
         if (!ui_->onLicense(text, accepted)) { error = "cancelled by user"; return false; }
         if (!accepted) { error = "license not accepted"; return false; }
@@ -368,15 +378,16 @@ bool FlowRunner::handleExecStep(FlowStep& step, std::string& error)
                                     step.params.value("7za", ""), &error);
         }
         std::string srcErr;
-        std::string plainSource = resolvePath(source);
+        std::string plainSource;
         std::string kind = "dir";
         if (source.rfind("dir:", 0) == 0) {
             plainSource = resolvePath(source.substr(4));
         } else if (source.rfind("qrc:", 0) == 0) {
-            plainSource = source;
+            plainSource = source.substr(4); // handled by the registered qt bridge
             kind = "qrc";
+        } else {
+            plainSource = resolvePath(source);
         }
-        if (kind == "qrc") { error = "qrc payload requires the Qt bridge"; return false; }
         auto src = makeDeploySource(DeploySpec{kind + ":" + plainSource, skip}, srcErr);
         if (!src) { error = srcErr; return false; }
         std::string openErr;

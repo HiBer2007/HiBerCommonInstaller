@@ -82,6 +82,12 @@ public:
     FlowRunner(ProductConfig& product, InstallContext& ctx,
                IFlowUi* ui, IScriptEngine* script);
 
+    // Optional: reads embedded resources (qrc: sources). Core stays zero-Qt;
+    // shells (GUI) supply a reader. Receives the path after "qrc:".
+    using ResourceReader = std::function<bool(const std::string& path,
+                                              std::string& out)>;
+    void setResourceReader(ResourceReader reader) { resourceReader_ = std::move(reader); }
+
     void setEventBus(EventBus* bus) { bus_ = bus; } // optional (M2 wiring)
     // Explicit extension registry (host-owned; extension DLLs register into the
     // SAME instance). Required for extension step types.
@@ -106,6 +112,7 @@ private:
     IScriptEngine* script_;
     EventBus* bus_ = nullptr;
     ExtensionRegistry* registry_ = nullptr;
+    ResourceReader resourceReader_;
     std::string baseDir_;
 };
 

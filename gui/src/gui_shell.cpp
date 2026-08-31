@@ -8,9 +8,12 @@
 #include "hci/script.h"
 #include "hci/flow.h"
 
+#include "resource_utils.h"
+
 #include <progress_card.h>
 
 #include <QDir>
+#include <QFile>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -21,6 +24,7 @@
 #include <QHBoxLayout>
 
 #include <filesystem>
+#include <iostream>
 
 namespace fs = std::filesystem;
 
@@ -45,8 +49,8 @@ std::string dirOf(const std::string& p)
 
 // ------------------------------------------------------------------
 GuiShell::GuiShell(const hci::ProductConfig& product, const std::string& flowFile,
-                   const std::string& installPath, QWidget* parent)
-    : QWidget(parent), product_(product), flowFile_(flowFile)
+                   const std::string& installPath, bool silent, QWidget* parent)
+    : QWidget(parent), product_(product), flowFile_(flowFile), silent_(silent)
 {
     if (!installPath.empty()) ctx_.vars().set("installDir", installPath);
 
@@ -120,7 +124,18 @@ int GuiShell::run()
 {
     hci::FlowSpec flow;
     try {
-        flow = hci::FlowSpec::loadFile(flowFile_);
+        if (flowFile_.rfind("qrc:", 0) == 0) {
+            std::string json;
+            if (!hci::gui::readResource(flowFile_, json)) {
+                QMessageBox::critical(this, QStringLiteral("Error"),
+                                      QStringLiteral("Cannot read flow resource: ") +
+                                          QString::fromUtf8(flowFile_.c_str()));
+                return 1;
+            }
+            flow = hci::FlowSpec::loadString(json);
+        } else {
+            flow = hci::FlowSpec::loadFile(flowFile_);
+        }
     } catch (const std::exception& e) {
         QMessageBox::critical(this, QStringLiteral("Error"),
                               QString::fromUtf8(e.what()));
@@ -136,11 +151,16 @@ int GuiShell::run()
     std::string extDir = port::joinPath(port::exeDir(), "extensions");
     if (fs::exists(fs::u8path(extDir))) loader.loadDirectory(extDir);
 
-    hci::gui::GuiFlowUi ui(*this);
+    hci::registerQtSources();
+
+    hci::gui::GuiFlowUi ui(*this, silent_);
     hci::FlowRunner runner(product_, ctx_, &ui, script.get());
     runner.setEventBus(&bus);
     runner.setRegistry(&registry);
     runner.setBaseDir(dirOf(flowFile_));
+    runner.setResourceReader([](const std::string& path, std::string& out) -> bool {
+        return hci::gui::readResource("qrc:" + path, out);
+    });
 
     titleLabel_->setText(QString::fromUtf8(product_.productName.c_str()) +
                          QStringLiteral(" - ") +
@@ -219,9 +239,9 @@ void GuiShell::showProgressCard(const QString& title, bool cancelable)
 }
 
 // ------------------------------------------------------------------
-GuiFlowUi::GuiFlowUi(GuiShell& shell) : shell_(shell)
+GuiFlowUi::GuiFlowUi(GuiShell& shell, bool silent) : shell_(shell)
 {
-    autopilot_ = !port::getEnv("HCI_GUI_AUTOPILOT").empty();
+    autopilot_ = silent || !port::getEnv("HCI_GUI_AUTOPILOT").empty();
 }
 
 bool GuiFlowUi::onWelcome(const std::string& productName,
@@ -336,6 +356,12 @@ void GuiFlowUi::onProgress(const std::string& step, int percent, const std::stri
 
 void GuiFlowUi::onMessage(const std::string& text, bool isError)
 {
+    if (shell_.silent()) {
+        // Headless mode: surface messages on stderr.
+        if (isError) std::cerr << "[ERROR] " << text << "\n";
+        else std::cerr << "[INFO] " << text << "\n";
+        return;
+    }
     if (isError) {
         shell_.log(QStringLiteral("[ERROR] ") + QString::fromUtf8(text.c_str()));
         shell_.setStatus(QStringLiteral("Error"));

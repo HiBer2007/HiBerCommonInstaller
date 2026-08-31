@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -50,6 +51,12 @@ std::shared_ptr<IDeploySource> makeZipSource(const std::string& zipPath);
 // Build a source from a DeploySpec; returns false for unsupported kinds.
 std::shared_ptr<IDeploySource> makeDeploySource(const DeploySpec& spec,
                                                 std::string& error);
+
+// Extension point for shell-specific source kinds (e.g. "qrc:" provided by
+// the Qt bridge). The factory receives the remainder after "kind:".
+using DeploySourceFactory = std::function<std::shared_ptr<IDeploySource>(
+    const std::string& rest, std::string& error)>;
+void registerDeploySourceFactory(const std::string& kind, DeploySourceFactory factory);
 
 // Wildcard match for skip patterns ('*' and '?' only).
 bool wildcardMatch(const std::string& pattern, const std::string& text);
