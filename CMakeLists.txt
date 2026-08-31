@@ -83,8 +83,10 @@ if(HCI_BUILD_GUI)
     add_subdirectory(gui)
 endif()
 
+if(HCI_BUILD_TUI)
+    add_subdirectory(tui)
+endif()
+
 if(HCI_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
-
-# TUI shell arrives in M5.
