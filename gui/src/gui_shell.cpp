@@ -188,13 +188,13 @@ int GuiShell::run()
                                           QString::fromUtf8(flowFile_.c_str()));
                 return 1;
             }
-            flow = hci::FlowSpec::loadString(json);
             if (silent_) {
                 std::cerr << "[DBG] flow bytes head: <<<"
-                          << json.substr(0, std::min<size_t>(160, json.size()))
+                          << json.substr(0, std::min<size_t>(200, json.size()))
                           << ">>> len=" << json.size()
                           << " file=" << flowFile_ << "\n";
             }
+            flow = hci::FlowSpec::loadString(json);
         } else {
             flow = hci::FlowSpec::loadFile(flowFile_);
         }
