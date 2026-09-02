@@ -152,6 +152,8 @@ int main(int argc, char* argv[])
         }
         if (f.rfind("qrc:", 0) == 0) {
             flowFile = f;
+        } else if (f.size() >= 2 && (f[1] == ':' || f[0] == '/' || f[0] == '\\')) {
+            flowFile = f; // external absolute flow path (testing/debug)
         } else if (fromQrc) {
             flowFile = base + f; // resolve relative flow names against qrc:/ 
         } else {
