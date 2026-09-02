@@ -4,6 +4,13 @@ project(HiBerCommonInstaller VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# MSVC: make source AND execution charset UTF-8 so \uXXXX escapes in string
+# literals (i18n table) compile to UTF-8 bytes, matching fromUtf8 decoding
+# in the shells. Without /utf-8 the escapes follow the ANSI codepage (GBK)
+# and every translated string is mangled.
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
 # AUTOMOC is enabled per-target: the core chain (zero Qt) must not see it;
 # the GUI shell enables it locally in gui/CMakeLists.txt (M4).
 
