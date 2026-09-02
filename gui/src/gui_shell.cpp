@@ -178,6 +178,11 @@ int GuiShell::run()
         if (flowFile_.rfind("qrc:", 0) == 0) {
             std::string json;
             if (!hci::gui::readResource(flowFile_, json)) {
+                if (silent_) {
+                    std::cerr << "Error: cannot read flow resource: "
+                              << flowFile_ << "\n";
+                    return 1;
+                }
                 QMessageBox::critical(this, QStringLiteral("Error"),
                                       QStringLiteral("Cannot read flow resource: ") +
                                           QString::fromUtf8(flowFile_.c_str()));
@@ -188,6 +193,11 @@ int GuiShell::run()
             flow = hci::FlowSpec::loadFile(flowFile_);
         }
     } catch (const std::exception& e) {
+        Log::Error(std::string("flow load failed: ") + e.what());
+        if (silent_) {
+            std::cerr << "Error: " << e.what() << "\n";
+            return 1;
+        }
         QMessageBox::critical(this, QStringLiteral("Error"),
                               QString::fromUtf8(e.what()));
         return 1;
