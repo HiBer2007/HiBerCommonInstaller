@@ -12,10 +12,12 @@ bool readResource(const std::string& path, std::string& out)
     if (p.empty() || p[0] != ':') p = ":" + p;
     QResource res(QString::fromUtf8(p.c_str()));
     if (!res.isValid() || res.size() <= 0) return false;
-    const unsigned char* data = res.data();
-    if (!data) return false;
-    out.assign(reinterpret_cast<const char*>(data),
-               reinterpret_cast<const char*>(data) + res.size());
+    // Qt 6: data() returns the raw (possibly compressed) bytes stored in the
+    // rcc unit; uncompressedData() decompresses (zlib/zstd per build) and
+    // returns the real content. Use it for all embedded text resources.
+    QByteArray bytes = res.uncompressedData();
+    if (bytes.isEmpty() && res.size() > 0) return false;
+    out.assign(bytes.constData(), static_cast<size_t>(bytes.size()));
     return true;
 }
 
