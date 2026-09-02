@@ -189,6 +189,12 @@ int GuiShell::run()
                 return 1;
             }
             flow = hci::FlowSpec::loadString(json);
+            if (silent_) {
+                std::cerr << "[DBG] flow bytes head: <<<"
+                          << json.substr(0, std::min<size_t>(160, json.size()))
+                          << ">>> len=" << json.size()
+                          << " file=" << flowFile_ << "\n";
+            }
         } else {
             flow = hci::FlowSpec::loadFile(flowFile_);
         }
@@ -196,10 +202,6 @@ int GuiShell::run()
         Log::Error(std::string("flow load failed: ") + e.what());
         if (silent_) {
             std::cerr << "Error: " << e.what() << "\n";
-            std::cerr << "[DBG] flow bytes head: <<<"
-                      << json.substr(0, 160).substr(0, std::min<size_t>(160, json.size()))
-                      << ">>> len=" << json.size()
-                      << " file=" << flowFile_ << "\n";
             return 1;
         }
         QMessageBox::critical(this, QStringLiteral("Error"),
