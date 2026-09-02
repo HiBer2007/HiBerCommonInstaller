@@ -607,13 +607,14 @@ void GuiFlowUi::onMessage(const std::string& text, bool isError)
 }
 
 bool GuiFlowUi::onGit(bool systemAvailable, std::string& mode,
-                      const std::string& def)
+                      const std::string& def, bool showInstallSystem)
 {
     if (autopilot_) { mode = def; return true; }
     nlohmann::json params;
     params["systemAvailable"] = systemAvailable;
     params["systemPath"] = shell_.context().vars().get("gitSystemPath");
     params["default"] = def;
+    params["showInstallSystem"] = showInstallSystem;
     QVariant res;
     QWidget* page = createPage("git", params, shell_, res);
     if (!shell_.blockOnPage(page, QString::fromUtf8(

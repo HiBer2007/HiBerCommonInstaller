@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -31,12 +32,31 @@ public:
     HostApi(EventBus* bus, ServiceRegistry* services, InstallContext* ctx,
             const ProductConfig* product, ExtensionRegistry* registry)
         : bus_(bus), services_(services), ctx_(ctx), product_(product),
-          registry_(registry) {}
+          registry_(registry)
+    {
+        // Pre-split product "extensions" metadata by extension id.
+        if (product_ && product_->extensionConfig.is_object()) {
+            for (auto it = product_->extensionConfig.begin();
+                 it != product_->extensionConfig.end(); ++it) {
+                extConfig_[it.key()] = it.value();
+            }
+        }
+    }
 
     EventBus& bus() { return *bus_; }
     ServiceRegistry& services() { return *services_; }
     InstallContext& context() { return *ctx_; }
     const ProductConfig& product() const { return *product_; }
+
+    // Extension feature configuration from the product metadata:
+    // product.json "extensions": { "<this id>": { ... } }. Returns an
+    // empty object when the product did not configure this extension.
+    const nlohmann::json& extensionConfig(const std::string& id) const
+    {
+        auto it = extConfig_.find(id);
+        if (it == extConfig_.end()) return emptyJson_;
+        return it->second;
+    }
 
     void log(LogLevel lv, const std::string& msg) const { Log::instance().write(lv, msg); }
 
@@ -55,6 +75,8 @@ private:
     InstallContext* ctx_;
     const ProductConfig* product_;
     ExtensionRegistry* registry_;
+    std::map<std::string, nlohmann::json> extConfig_;
+    nlohmann::json emptyJson_;
 };
 
 class IHciExtension {

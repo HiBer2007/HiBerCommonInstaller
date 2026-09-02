@@ -76,6 +76,11 @@ struct ProductConfig {
     UninstallSpec uninstall;
     ElevationSpec elevation;
 
+    // Extension feature configuration (product metadata -> extensions):
+    //   "extensions": { "<extensionId>": { ...custom keys... }, ... }
+    // Extensions read their section via HostApi::extensionConfig(id).
+    nlohmann::json extensionConfig;
+
     // Load from a JSON file (UTF-8). Throws std::runtime_error on failure.
     static ProductConfig loadFile(const std::string& jsonPath);
 

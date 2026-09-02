@@ -128,6 +128,7 @@ std::string readText(const std::string& path)
 
 std::string fetchGitHubAssetUrl(const std::string& repo,
                                 const std::string& namePattern,
+                                bool allowExe,
                                 std::string* error)
 {
     cpr::Response r = cpr::Get(cpr::Url{"https://api.github.com/repos/" + repo + "/releases/latest"},
@@ -149,10 +150,14 @@ std::string fetchGitHubAssetUrl(const std::string& repo,
         std::string upName = name, upPattern = namePattern;
         for (auto& c : upName) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
         for (auto& c : upPattern) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-        if (upName.find(upPattern) != std::string::npos &&
-            upName.find("64-BIT") != std::string::npos &&
-            (upName.rfind(".ZIP") == upName.size() - 4 ||
-             upName.rfind(".7Z.EXE") == upName.size() - 7)) {
+        if (upName.find(upPattern) == std::string::npos) continue;
+        if (upName.find("64-BIT") == std::string::npos) continue;
+        bool zipMatch = upName.rfind(".ZIP") == upName.size() - 4 ||
+                        upName.rfind(".7Z.EXE") == upName.size() - 7;
+        bool exeMatch = allowExe &&
+                        upName.rfind(".EXE") == upName.size() - 4 &&
+                        upName.rfind(".7Z.EXE") != upName.size() - 7;
+        if (zipMatch || exeMatch) {
             return a.value("browser_download_url", "");
         }
     }
@@ -395,7 +400,10 @@ bool FlowRunner::handleUiStep(FlowStep& step, std::string& error)
         std::string mode;
         std::string def = step.params.value("default", "");
         if (def.empty()) def = available ? "system" : "bundled";
-        if (!ui_->onGit(available, mode, def)) { error = "cancelled by user"; return false; }
+        bool showInstallSystem =
+            step.params.value("installSystemOption", false) ||
+            ctx_.vars().getBool("showInstallSystem");
+        if (!ui_->onGit(available, mode, def, showInstallSystem)) { error = "cancelled by user"; return false; }
         if (mode.empty()) mode = def;
         ctx_.vars().set("gitMode", mode);
         ctx_.vars().setBool("gitUseSystem", mode == "system");
@@ -595,7 +603,8 @@ bool FlowRunner::handleExecStep(FlowStep& step, std::string& error)
             std::string repo = step.params["asset"].get<std::string>();
             std::string variant = step.params.value("variant", "");
             if (variant.empty()) { error = "download(asset): missing variant"; return false; }
-            url = fetchGitHubAssetUrl(repo, variant, &error);
+            bool allowExe = step.params.value("ext", "") == "exe";
+            url = fetchGitHubAssetUrl(repo, variant, allowExe, &error);
             if (url.empty()) return false;
         } else {
             error = "download: missing url or asset";

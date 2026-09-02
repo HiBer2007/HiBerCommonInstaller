@@ -285,24 +285,39 @@ QWidget* pageGit(const nlohmann::json& params, GuiShell& shell, QVariant& res)
     l->addWidget(info);
 
     std::string def = params.value("default", "system");
+    bool showInstallSystem = params.value("showInstallSystem", false);
     auto* rbSys = new QRadioButton(QString::fromUtf8(
         hci::lang::tr(shell.language(), "Use system Git").c_str()), w);
     auto* rbBun = new QRadioButton(QString::fromUtf8(
         hci::lang::tr(shell.language(), "Use bundled Git").c_str()), w);
     rbSys->setEnabled(sysAvail);
+    // "Install system Git" is offered only when no system git exists.
+    auto* rbInst = (!sysAvail && showInstallSystem)
+        ? new QRadioButton(QString::fromUtf8(
+            hci::lang::tr(shell.language(),
+                          "Download and install system Git (admin)").c_str()), w)
+        : nullptr;
     if (def == "bundled") {
         rbBun->setChecked(true);
+    } else if (def == "install-system" && rbInst) {
+        rbInst->setChecked(true);
     } else {
         rbSys->setChecked(true);
     }
     l->addWidget(rbSys);
     l->addWidget(rbBun);
+    if (rbInst) l->addWidget(rbInst);
     QObject::connect(rbSys, &QRadioButton::toggled, &shell, [&res](bool on) {
         if (on) res = QStringLiteral("system");
     });
     QObject::connect(rbBun, &QRadioButton::toggled, &shell, [&res](bool on) {
         if (on) res = QStringLiteral("bundled");
     });
+    if (rbInst) {
+        QObject::connect(rbInst, &QRadioButton::toggled, &shell, [&res](bool on) {
+            if (on) res = QStringLiteral("install-system");
+        });
+    }
     res = QString::fromUtf8(def.c_str());
     l->addStretch(1);
     return w;

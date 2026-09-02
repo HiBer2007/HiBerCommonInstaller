@@ -101,6 +101,9 @@ ProductConfig ProductConfig::loadString(const std::string& jsonText)
         p.elevation.autoRestart = j["elevation"].value("autoRestart", true);
         p.elevation.reason = j["elevation"].value("reason", "");
     }
+    if (j.contains("extensions") && j["extensions"].is_object()) {
+        p.extensionConfig = j["extensions"];
+    }
     return p;
 }
 

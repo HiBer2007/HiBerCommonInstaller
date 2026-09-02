@@ -64,7 +64,7 @@ public:
     bool onInput(const std::string& prompt, std::string& value,
                  bool required) override;
     bool onGit(bool systemAvailable, std::string& mode,
-               const std::string& def) override;
+               const std::string& def, bool showInstallSystem) override;
     void onProgress(const std::string& step, int percent,
                     const std::string& detail) override;
     void onMessage(const std::string& text, bool isError) override;

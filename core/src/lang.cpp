@@ -44,6 +44,8 @@ const std::map<std::string, std::string>& zhTable()
          "\u672a\u68c0\u6d4b\u5230\u7cfb\u7edf Git\u3002"},
         {"Use system Git", "\u4f7f\u7528\u7cfb\u7edf Git"},
         {"Use bundled Git", "\u4f7f\u7528\u5185\u7f6e Git"},
+        {"Download and install system Git (admin)",
+         "\u4e0b\u8f7d\u5e76\u5b89\u88c5\u7cfb\u7edf Git\uff08\u9700\u7ba1\u7406\u5458\uff09"},
         // Git strategy page
         {"Select components:", "\u9009\u62e9\u7ec4\u4ef6\uff1a"},
         {"Choose what to install. Required components cannot be unchecked.",

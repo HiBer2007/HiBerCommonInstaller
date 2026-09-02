@@ -75,10 +75,12 @@ public:
                           const std::vector<std::string>& launchOptions = {}) = 0;
 
     // Git strategy selection ("git" ui step): 'systemAvailable' is the
-    // auto-detection result; 'mode' in ("", "system", "bundled", "auto")
-    // with 'def' as the suggested default. Returns false = user cancelled.
+    // auto-detection result; 'mode' in ("", "system", "bundled",
+    // "install-system") with 'def' as the suggested default; the picker may
+    // offer the system-install option when 'showInstallSystem' is true.
+    // Returns false = user cancelled.
     virtual bool onGit(bool systemAvailable, std::string& mode,
-                       const std::string& def)
+                       const std::string& def, bool showInstallSystem = false)
     {
         mode = def;
         return true;
