@@ -6,11 +6,13 @@ C++ ANSI 终端壳（零 Qt）：内嵌 wcwidth 宽字符表（CJK/emoji 感知�
 
 ```
 hci_tui [options]
-  --product <file.json> / --flow <install|uninstall|file.json> / --path <dir>
-  --tui / --help / --version
+  --product <file.json> / --flow <install|uninstall|repair|upgrade|file.json>
+  --path <dir> / --lang <en|zh> / --tui / --help / --version
 ```
 
 **前提**：必须存在交互终端（`hasConsole()`）；无终端（CreateProcessA 场景）→ 明确报错并提示改用 hci_cli（autopilot 测试钩子可绕过）。
+
+**语言**：`--lang <code>` 预置（TuiShell 构造语言参数，`ctx.vars().language` 同步）；未指定时取 product `defaultLanguage`（缺省 en）。壳文本（交互标签/提示）经 `hci::lang::tr(lang_, en)` 渲染（zh 时中文）；language 步骤（如有）默认实现采纳既定值不弹窗。
 
 ## 渲染架构（`tui/src/tui_shell.{h,cpp}`）
 
@@ -28,7 +30,7 @@ std::string ansi(const char* code, const std::string& text);
 
 class TuiShell {
     TuiShell(const hci::ProductConfig& product, const std::string& flowFile,
-             const std::string& installPath);
+             const std::string& installPath, const std::string& language = "");
     int run();
     // Rendering
     void clear();                       // ESC[2J ESC[H
@@ -48,17 +50,21 @@ class TuiShell {
     const std::string& flowFile() const;
     bool autopilot() const;
     size_t width() const;
+    const std::string& language() const;
+    void setLanguage(const std::string& l);
+    std::string tr(const std::string& en) const;  // hci::lang::tr(lang_, en)
 };
 ```
 
-交互步骤由 `TuiFlowUi : hci::IFlowUi` 驱动：
+交互步骤由 `TuiFlowUi : hci::IFlowUi` 驱动（壳文本随语言渲染）：
 
 | 流程 ui | TUI 呈现 |
 |---|---|
-| welcome | 清屏 + banner + 产品标题 + 回车继续 |
-| license | 标题 + 协议文本（40 行截断 + 折行）+ `[Y/n]` |
-| path | `Install directory [default]: ` |
+| welcome | 清屏 + banner + 产品标题 + 「按回车继续」 |
+| license | 标题 + 协议文本（40 行截断 + 折行）+ 「接受许可协议？[Y/n]」 |
+| path | `安装目录 [default]: ` |
 | components | `toggleList`（`[x]` 标记 + `toggle id, blank = done`） |
+| git | 默认实现（`onGit`）直接采纳默认模式（参数预置时亦然）；交互选择留给实机 |
 | option | 编号列表 `<n>` |
 | confirm | `[Y/n]` |
 | input | `prompt: `（必填重试循环） |

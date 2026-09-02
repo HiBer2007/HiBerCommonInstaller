@@ -31,6 +31,11 @@
 - 当前 API：`ZipArchive(path).open(ReadOnly)`、`getEntries()`、`getEntry(name)` 返回**按值** `ZipEntry`（`isNull()` 判空）、`readContent(std::ostream&)`、`readAsText()`
 - 修法：写代码前先看 `build/vcpkg_installed/.../include/libzippp/libzippp.h` 实测（见 core/src/payload.cpp、ext/src/extension_loader.cpp）
 
+### CMake 单行 `if(...) list(...) endif()` 解析失败
+- 现象：`Parse error. Expected a newline, got identifier with text "list"`
+- 根因：同一行内多个命令必须以分号分隔；`if(cond) cmd() endif()` 单行写法触发解析错
+- 修法：拆多行书写（`if(cond)` → 缩进命令 → `endif()`）
+
 ## 运行期（加载/流程）
 
 ### 静态库跨 DLL 状态重复（ExtensionRegistry）
@@ -58,7 +63,37 @@
 - 根因：`CreateProcessW` 的 lpCommandLine 被外层 `L"\"" + cmdLine + L"\""` 再包一层 → 整行被当可执行名
 - 修法：每个参数单独按需加引号，整行不再包装（见 core/src/exec.cpp）
 
+### autopilot 默认值覆盖 CLI 参数（--use-bundled-git 失效）
+- 现象：`--use-bundled-git --silent` 仍走系统 Git（决策页默认值把参数预设覆盖）
+- 根因：autopilot 下 `onGit` 默认实现返回"建议默认"，覆盖了参数处理器预置的 `vars.gitMode`
+- 修法：流程 git 步骤先读 `vars.gitMode`（CLI/拓展预置）——**已有则跳过选择器**，缺省才询问 UI
+
+### runProcess(waitMs==0) 无限等待启动的 GUI 程序 → 安装器挂住
+- 现象：静默 finish 自动启动主程序后，安装器进程一直不退出（静默安装超时）
+- 根因：`waitMs<=0 = INFINITE` 语义，启动 GUI 程序后等它退出
+- 修法：新增 **detach 语义**（`waitMs<0`：CreateProcess 后直接返回不等待）；finish 启动一律 detach；静默模式不再自动启动
+
+### cpr 网络异常未捕获 → 下载崩溃
+- 现象：download 步骤（GitHub asset 下载）网络异常（如本机 SSL 握手失败）时进程崩溃而非报错
+- 根因：`cpr::Get`/`session.Download` 抛异常未捕获
+- 修法：`fetchGitHubAssetUrl` 与 `downloadFile` 全部 try/catch 转错误文本（`download chain init` 等初始化日志现已齐全）
+
 ## qrc / 单文件分发
+
+### QResource::data() 返回压缩字节（内嵌 product/flow 全乱码的终极根因）
+- 现象：单文件内嵌构建（静态 Qt）启动即弹 `product.json: invalid JSON` / `flow: invalid JSON`；静默模式 exit 1；`--version` 正常
+- 根因：Qt6 的 `QResource::data()` 返回 rcc 存储的**原始（含压缩）字节**（zlib 流），直接当文本解析必败；开发用动态 Qt 时行为不同故早期未暴露
+- 修法：`QResource::uncompressedData()`（Qt ≥ 6.4）——`resource_utils.cpp` 现以此读取全部内嵌文本
+
+### AUTORCC 只依赖 .qrc 文件，内容变更不触发重编
+- 现象：改了内嵌 install.json/product.json 后重新构建，运行仍是旧内容
+- 根因：AUTORCC 的目标依赖是 .qrc 本身（内容不变 → ninja 认为无需重跑 rcc），源文件变化不追踪
+- 修法：qrc **文件名含内容哈希**（`hci_product_<hash>.qrc`，configure 期对各内嵌文件取 MD5 拼接）→ 内容一变即新目标必然重编；同时 `Q_INIT_RESOURCE` 改用宏间接展开对接哈希命名单元（`HCI_PRODUCT_QRC_NAME` 编译定义）
+
+### silent GUI 弹 QMessageBox → 无头挂死
+- 现象：`--silent` 安装（无人值守/CI）在无头环境"卡住"（流程加载失败或错误路径）
+- 根因：错误分支直接 `QMessageBox::critical` 模态阻塞，无用户点击
+- 修法：静默模式错误一律走 stderr（`std::cerr << "Error: ..."` + return），仅交互模式弹框
 
 ### QFile 打开 qrc 资源失败（诡异：QDir 能列、QFile 不行）
 - 现象：`QFile(":/product.json").open` 报系统找不到文件，而同进程 `QDir(":/").entryList()` 可见
@@ -66,11 +101,11 @@
 
 ### AUTORCC 资源未注册
 - 现象：qrc 编译进二进制（字符串表在 exe 里）但运行时访问失败
-- 根因：AUTORCC 只负责编译链接；**资源注册要 `Q_INIT_RESOURCE(hci_product)`**（main.cpp，`HCI_EMBED_PRODUCT` 宏控制）
+- 根因：AUTORCC 只负责编译链接；**资源注册要 `Q_INIT_RESOURCE(<qrc 单元名>)`**（main.cpp 经宏间接展开，`HCI_EMBED_PRODUCT` + `HCI_PRODUCT_QRC_NAME`（哈希命名单元）控制）
+- 修法：内嵌构建（`HCI_EMBED_PRODUCT`）时在 `QApplication` 创建后调用资源初始化；单元名与 qrc 文件名一致
 
 ### 改了 json 不生效
-- 根因：`HCI_PRODUCT_FILES` 内容在 **configure 期**写入 qrc
-- 修法：改 product.json/流程 json 后重跑 configure（重新生成 qrc；宿主侧即重跑其 configure 命令）
+- 根因/修法：qrc 目标**以内容哈希命名**——内嵌文件内容一变即自动生成新 rcc 目标（无需手动重跑 configure）；仅当哈希未变的构建缓存异常时才需 `cmake --configure` 或清除该 rcc 产物
 
 ### 路径形式
 - `qrc:/x` 与 `:/x`：资源引擎统一按 `:/x` 处理（内部自行归一化）；外部 API 两种都接受

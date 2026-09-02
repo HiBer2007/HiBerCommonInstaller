@@ -20,7 +20,10 @@
 | `HCI_CORE_SHARED` | OFF | hci_core 共享库（WINDOWS_EXPORT_ALL_SYMBOLS） |
 | `HCI_QT_STATIC` | OFF | 静态 Qt 模式：`qt_import_plugins(QWindowsIntegrationPlugin)`，跳过 windeployqt |
 | `HCI_PRODUCT_FILES` | 空 | GUI qrc 内嵌清单（`alias=path`，见下） |
+| `HCI_ICON_PATH` | `resources/installer.ico` | 嵌入三壳 EXE 的图标（.ico；宿主可 `-DHCI_ICON_PATH=<自定>` 覆盖） |
 | `HIBERGUI_BUILD_EXAMPLES` | ON* | 子模块示例（宿主集成时关） |
+
+**编码**：全局 `add_compile_options(/utf-8)`（MSVC）——源码与执行字符集均为 UTF-8，`\uXXXX` 转义（i18n 表）编译为 UTF-8 字节（否则按 ANSI 码页编码导致 GUI 中文乱码，见 pitfalls）。
 
 ## 动态 Qt 构建（开发）
 
@@ -57,8 +60,9 @@ cmake -S . -B build_qrc ... -DHCI_PRODUCT_FILES="$files"
 ```
 
 - 条目 `alias=绝对路径`；alias 为 qrc 内路径（`deploy/...` 前缀即 payload 的 `qrc:/deploy`）
-- qrc 资源注册在 main.cpp（`Q_INIT_RESOURCE(hci_product)`，宏 `HCI_EMBED_PRODUCT`）
-- **改内嵌内容后必须重跑 configure**（qrc 在 configure 期生成）
+- **qrc 目标以内容哈希命名**（`hci_product_<hash>.qrc`）：内嵌文件变更自动生成新 rcc 目标（AUTORCC 只依赖 .qrc 文件本身，哈希命名保证内容变化必重编）
+- 资源注册 = `Q_INIT_RESOURCE` 宏间接展开（编译定义 `HCI_PRODUCT_QRC_NAME` 指向哈希命名单元）
+- `readResource` 走 `QResource::uncompressedData()`（Qt6 `data()` 为压缩字节）
 - 产品内嵌时运行：`hci_gui --product qrc:/product.json --flow install [--silent] [--path <dir>]`
 
 ## 宿主集成（作为子目录 / submodule）
@@ -68,8 +72,8 @@ cmake -S . -B build_qrc ... -DHCI_PRODUCT_FILES="$files"
 - 编译所需壳：`set(HCI_BUILD_GUI ON)`（其余 OFF）后 `add_subdirectory(modules/HiBerCommonInstaller)`
 - 传递发布选项：`HCI_QT_STATIC=ON`、静态 Qt 的 `CMAKE_PREFIX_PATH`、`DEPLOY_SOURCE=<宿主构建产物目录>`
 - 组装 `HCI_PRODUCT_FILES`（deploy 全量 + 宿主 product/flows/许可，见上文 alias 语法）——单文件分发由宿主侧完成
-- 拓展 DLL（宿主专属参数/步骤）构建后拷到 `<HCInstaller_Template_<version>.exe>/extensions/`
-- 版本资源由本仓库自包含，宿主零注入
+- 拓展（参数/步骤/后端）：宿主专属拓展 `target_sources(hci_gui PRIVATE ...)` 静态并入，或 DLL 拷到 `<壳 exe>/extensions/`；官方拓展 target：**hci_git / hci_winget / hci_apt**（`ext/` 子目录，静态库——静态并入时用 target_sources 引其源文件以保留静态注册）
+- 版本资源与图标由本仓库自包含，宿主零注入（`HCI_ICON_PATH` 可覆盖）
 
 ```powershell
 cmd /c "vcvars64.bat && cmake --preset <宿主预设> && cmake --build <宿主构建目录>"

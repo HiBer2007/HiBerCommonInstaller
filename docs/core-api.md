@@ -93,11 +93,15 @@ struct ProcessResult {
     std::string output;   // stdout+stderr 合并（UTF-8 尽力）
 };
 bool runProcess(const std::vector<std::string>& command, int waitMs,
-                ProcessResult& result);   // waitMs<=0 = 无限；超时杀进程
+                ProcessResult& result);   // waitMs<0 = 分离启动(不等)；waitMs==0 = 无限；>0 超时杀进程
 
 using DownloadProgress = std::function<void(long long received, long long total)>;
 bool downloadFile(const std::string& url, const std::string& destPath,
                   DownloadProgress progress = nullptr, std::string* error = nullptr); // cpr/libcurl
+
+// Git 定位与写权限探测
+bool findSystemGit(std::string* path = nullptr);   // PATH "git" → 常见安装路径，逐候选 `--version` 验证
+bool checkDirWritable(const std::string& dir, std::string* error = nullptr); // 建目录 + 探针文件写删
 
 // 文本模板（{name} 插值）
 std::string renderTemplate(const std::string& text, const Vars& vars);
@@ -202,6 +206,52 @@ std::string normalizeSlashes(const std::string& p);
 
 std::string getEnv(const std::string& name, const std::string& fallback = "");
 void setEnv(const std::string& name, const std::string& value);
+std::string expandEnv(const std::string& text);   // %NAME% → getEnv（未知/畸形占位原样保留）
+```
+
+## 下载后端（`hci/download.h`，命名空间 `hci::download`）
+
+```cpp
+struct DownloadRequest {
+    std::string url;      // 直链
+    std::string asset;    // GitHub repo "owner/name"（variant 匹配资产名）
+    std::string variant;  // 资产名匹配串（大写包含）
+    bool allowExe = false; // 同时匹配安装器 .exe 资产
+    std::string package;  // 包 id（winget/apt 后端）
+    std::string dest;     // 输出文件（安装式后端可省略）
+};
+struct DownloadResult { bool ok; std::string error; std::string backend; };
+
+class IDownloadBackend {
+    virtual const char* name() const = 0;
+    virtual bool supports(const DownloadRequest& req) const = 0;
+    virtual bool fetch(DownloadRequest& req, DownloadProgress progress,
+                       std::string& error) = 0;
+};
+
+std::shared_ptr<IDownloadBackend> makeDirectBackend();       // "direct"
+std::shared_ptr<IDownloadBackend> makeGitHubBackend();       // "github"
+std::shared_ptr<IDownloadBackend> makePowerShellBackend();   // "powershell"
+std::shared_ptr<IDownloadBackend> makeCurlBackend();         // "curl"
+
+DownloadResult runChain(const DownloadRequest& req,
+                        const std::vector<std::string>& chain,
+                        const std::vector<std::shared_ptr<IDownloadBackend>>& extra,
+                        DownloadProgress progress = nullptr); // 链式：首个适用且成功即止
+```
+
+## 语言 i18n（`hci/lang.h`，命名空间 `hci::lang`）
+
+```cpp
+std::string tr(const std::string& code, const std::string& en); // "zh" 查表，未知键回退英文
+std::vector<std::pair<std::string, std::string>> availableLanguages(); // {"en","English"},{"zh","简体中文"}
+```
+
+## 提权（`hci/elevation.h`，命名空间 `hci::elevation`）
+
+```cpp
+bool isElevated();                          // Windows token 提权检测
+bool relaunchAsAdmin(std::string& err);     // 以原始命令行 UAC 重启自身（成功后调用方应退出）
 ```
 
 ## 入口层（`hci/entry.h`，命名空间 `hci::entry`）
@@ -210,16 +260,21 @@ void setEnv(const std::string& name, const std::string& value);
 struct EntryOptions {
     std::string mode;            // "gui" | "tui" | "cli" | ""
     std::string productJson;
-    std::string flow;            // "install" | "uninstall" | 文件路径
+    std::string flow;            // "install" | "uninstall" | "repair" | "upgrade" | 文件路径
     bool silent = false;
     bool jsonOut = false;
     std::string installPath;
+    std::string language;        // --lang 代码（"en"/"zh"）→ 预置 vars.language
     std::vector<std::string> extensionArgs;   // 交拓展 cliArgs 处理器
     std::string resolveMode(const ProductConfig& product) const;  // 显式 > product.defaultMode
 };
 
-// 品牌横幅：<产品名> ASCII 拼接字（font: slant|standard，超长自动降档）+ 强制 Powered by 行
-std::string renderBanner(const std::string& productName, const std::string& font = "slant");
+// 品牌横幅：<产品名> ASCII 拼接字（font: slant|standard|neo）+ 强制 Powered by 行
+//  "neo" = 主程序 CLI 同款拼接字（Neo 图样 + "Neo Server Update Modpack v<version>"）；
+//  version 非空时在副行追加 " v<version>"。
+std::string renderBanner(const std::string& productName,
+                         const std::string& font = "slant",
+                         const std::string& version = "");
 
 // 库模式安装（实现位于 hci_flow）：返回进程退出码（0 成功 / 1 失败 / 2 用法错误）
 int runInstall(const ProductConfig& product, const std::string& flowPath,
@@ -238,10 +293,19 @@ class ExtensionRegistry {
     void registerStep(const std::string& type, StepHandler handler);
     bool runStep(const std::string& type, const nlohmann::json& params,
                  InstallContext& ctx, std::string& error) const;   // 未注册返回 false
-    void registerCliArg(const std::string& arg, CliArgHandler handler);
+    void registerCliArg(const std::string& arg, CliArgHandler handler,
+                        const std::string& help = "");   // help 出现在 --help 插件段
     bool handleCliArg(const std::string& arg, InstallContext& ctx) const;
     bool hasCliArg(const std::string& arg) const;
     std::vector<std::string> cliArgs() const;
+    std::string cliArgHelp(const std::string& arg) const;
+    // 下载后端工厂（拓展 init 注册；flow download 链经注入实例消费，跨 DLL 安全）
+    using DownloadBackendFactory =
+        std::function<std::shared_ptr<hci::download::IDownloadBackend>()>;
+    void registerDownloadBackend(const std::string& name, DownloadBackendFactory factory);
+    std::vector<std::string> downloadBackends() const;
+    std::shared_ptr<hci::download::IDownloadBackend>
+        createDownloadBackend(const std::string& name) const;
     void clear();
 };
 ```

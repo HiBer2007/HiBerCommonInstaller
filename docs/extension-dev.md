@@ -34,8 +34,11 @@ EventBus& bus();                       // 事件总线（发布 hci/step 等主�
 ServiceRegistry& services();           // 服务注册表（拓展间调用）
 InstallContext& context();             // 当前运行上下文（vars/state/cancel）
 const ProductConfig& product() const;  // 产品配置（只读）
+// 拓展功能配置：product.json "extensions": { "<本拓展 id>": { ... } }；
+// 未配置时返回空对象（见 product-config.md 的 extensions 段）
+const nlohmann::json& extensionConfig(const std::string& id) const;
 void log(LogLevel lv, const std::string& msg) const;
-ExtensionRegistry& registry();         // 步骤/参数注册表（宿主注入实例；兜底静态）
+ExtensionRegistry& registry();         // 步骤/参数/下载后端注册表（宿主注入实例；兜底静态）
 bool hasRegistry() const;              // 宿主是否注入了注册表实例
 ```
 
@@ -62,12 +65,27 @@ api.registry().registerCliArg("--with-editor",
     [](const std::string&, hci::InstallContext& ctx) {
         ctx.vars().setBool("components.editor", true);
         return true;                    // false → 宿主报"extension rejected argument"
-    });
+    },
+    "preselect the editor component");  // 第三参 help：出现在壳 --help 的插件段
 ```
 
 语义：核心只解析核心参数；未知参数收集后路由给处理器（CLI/GUI 均支持）。处理器在流程运行**前**执行 → 预置变量（如组件勾选），流程的 components 页以"已有变量优先"初始化。
 
+## 4b. 注册下载后端（拓展下载链）
+
+```cpp
+api.registry().registerDownloadBackend(
+    "myfs",
+    []() -> std::shared_ptr<hci::download::IDownloadBackend> {
+        return std::make_shared<MyFsBackend>();   // 实现 hci::download::IDownloadBackend
+    });
+```
+
+流程侧即可链式使用：`{ "type": "download", "url": "...", "chain": ["myfs", "curl", "direct"] }`。内置后端见 [core-api.md](core-api.md) 下载后端节；链语义：首个 `supports()` 且执行成功即止。
+
 ## 5. 三种加载方式
+
+`ExtensionLoader` 提供 `modules()`（`std::vector<std::pair<std::string,std::string>>`，已加载拓展的 id/version）供帮助/元数据展示。
 
 ### 5a. 静态链接（编译进壳）
 
@@ -163,7 +181,31 @@ extern "C" HCI_EXT_EXPORT hci::IHciExtension* HciGetExtension() { return new Dem
 - 总线：`api.bus().subscribe("hci/step", ...)` 监听步骤生命周期；`publish`/`post` 自定义主题
 - 服务：`api.services().registerService<T>(impl)` / `api.services().service<T>()`（键 = typeid 名）；另一拓展 `init` 中取用（注意加载顺序——延迟到步骤执行期取更稳）
 
-## 8. 注意事项
+## 8. 随仓库附带的官方拓展
+
+### hci_git（`ext/git/`，id `hci.git`）— Git 策略通用拓展
+
+任何需要 Git 的安装流程可静态链入或 DLL 托管：
+
+- **CLI 参数**：`--use-system-git` / `--use-bundled-git` / `--install-system-git`（均带 help 文本）
+- **步骤 `git_plan`**：系统 vs 内置 vs 安装系统的决策（自动探测 + 模式），写入 `gitUseSystem/gitDownload/gitInstallKind/gitVariant/gitInstallDir/gitPath/gitPlanned`。参数：
+  - `editorComponent`（勾选该组件时变体用 PortableGit）、`editorVariant`（自定义变体名）
+  - `gitDir`：**内置 Git 安装的相对位置**（相对 installDir，缺省 `tools/git`；其次取产品元数据 `extensions.hci.git.gitDir`）
+  - `installerVariant`（install-system 模式的安装器资产匹配串，缺省 `Git-`）
+- **步骤 `git_refresh`**：安装系统 Git 后重新探测并写回 `gitPath/gitUseSystem`
+- **产品元数据配置**：`"extensions": { "hci.git": { "gitDir": "tools/git" } }`
+
+### hci_winget（`ext/winget/`，id `hci.winget`）— winget 下载/安装后端
+
+注册下载后端 `winget`（Windows）：`winget install --exact --id <package> --silent --accept-package-agreements --accept-source-agreements`。流程用法：`{ "type": "download", "package": "Git.Git", "backend": "winget" }`。
+
+### hci_apt（`ext/apt/`，id `hci.apt`）— apt 下载/安装后端
+
+注册下载后端 `apt`（POSIX）：`apt-get install -y <package>`（需 root；Windows 自动不可用）。流程用法：`{ "type": "download", "package": "git", "backend": "apt" }`，可与 `chain` 组合成跨平台回退策略。
+
+三个官方拓展均为标准 `HCI_REGISTER_EXTENSION` 注册（静态链接进壳即可生效），可作自定义拓展的参照实现。
+
+## 9. 注意事项
 
 - **退出卸载**：加载的 DLL 在进程退出前**不要 FreeLibrary**（卸载导致退出期访问违例已实证）；模块保持加载、交进程回收
 - **日志**：`api.log(...)` 走宿主 sink；拓展内勿自行 Init 日志器

@@ -9,8 +9,9 @@ hci_cli [options]
   --gui | --tui | --cli     shell mode（默认: product defaultMode；gui/tui 未编译时明确报错）
   --silent, -s              non-interactive（默认答案）
   --path <dir>              install path override
+  --lang <code>             language: en | zh（预置 vars.language；语言步骤直接采纳）
   --product <file.json>     product config（默认 ./product.json）
-  --flow <id|file.json>     flow: install | uninstall | 文件路径
+  --flow <id|file.json>     flow: install | uninstall | repair | upgrade | 文件路径
   --json                    JSON protocol blocks on stdout
   --verbose                 debug logging
   --extensions <dir>        load extensions from directory（默认 <exe>/extensions）
@@ -18,6 +19,8 @@ hci_cli [options]
 ```
 
 未知参数 → 收集为 extensionArgs → 启动后路由给拓展 `cliArgs` 处理器；**无处理器认领 → "Error: unknown option" + exit 2**。
+
+**`--help` 输出**：基础参数 + （尽力加载产品/拓展后）**「Extension options (provided by plugins)」段**（各插件参数及其 help 文本，如 `--with-editor`、`--use-system-git`、`--use-bundled-git`、`--install-system-git`）与 **「Extension modules」段**（已加载插件 id + version，经 `loader.modules()`）。产品/插件缺失时仅输出基础帮助（`--help` 永不失败）。
 
 ## 退出码
 
