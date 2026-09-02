@@ -81,8 +81,11 @@ if(HCI_PRODUCT_FILES)
     file(APPEND "${_prod_qrc}" "  </qresource>\n</RCC>\n")
     target_sources(hci_gui PRIVATE "${_prod_qrc}")
     set_target_properties(hci_gui PROPERTIES AUTORCC ON)
-    # Resource registration happens via Q_INIT_RESOURCE(hci_product) in main.cpp.
+    # Resource registration: Q_INIT_RESOURCE with the hash-named unit
+    # (macro-indirection in main.cpp expands HCI_PRODUCT_QRC_NAME first).
     target_compile_definitions(hci_gui PRIVATE HCI_EMBED_PRODUCT=1)
+    target_compile_definitions(hci_gui PRIVATE
+        HCI_PRODUCT_QRC_NAME=hci_product_${_prod_qrc_name})
     message(STATUS "hci_gui: embedding product files (qrc hash ${_prod_qrc_name}): ${HCI_PRODUCT_FILES}")
 endif()
 

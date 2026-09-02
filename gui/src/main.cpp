@@ -124,7 +124,14 @@ int main(int argc, char* argv[])
     // QApplication must exist before loading qrc: resources.
     QApplication app(argc, argv);
 #ifdef HCI_EMBED_PRODUCT
-    Q_INIT_RESOURCE(hci_product);
+    // The qrc unit name comes from CMake (hash-named target so embedded
+    // file edits force the rcc step; see gui/CMakeLists.txt).
+#ifndef HCI_PRODUCT_QRC_NAME
+#define HCI_PRODUCT_QRC_NAME hci_product
+#endif
+#define HCI_QRC_GLUE(x) x
+#define HCI_QINIT_RESOURCE(name) Q_INIT_RESOURCE(HCI_QRC_GLUE(name))
+    HCI_QINIT_RESOURCE(HCI_PRODUCT_QRC_NAME);
 #endif
 
     ProductConfig product;
