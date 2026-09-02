@@ -131,15 +131,17 @@ std::string fetchGitHubAssetUrl(const std::string& repo,
                                 bool allowExe,
                                 std::string* error)
 {
-    cpr::Response r = cpr::Get(cpr::Url{"https://api.github.com/repos/" + repo + "/releases/latest"},
-                               cpr::Header{{"Accept", "application/vnd.github+json"},
-                                           {"User-Agent", "hci/1.0"},
-                                           {"X-GitHub-Api-Version", "2022-11-28"}},
-                               cpr::Timeout{15000});
-    if (r.status_code != 200) {
-        if (error) *error = "GitHub API HTTP " + std::to_string(r.status_code);
-        return {};
-    }
+    std::string url;
+    try {
+        cpr::Response r = cpr::Get(cpr::Url{"https://api.github.com/repos/" + repo + "/releases/latest"},
+                                   cpr::Header{{"Accept", "application/vnd.github+json"},
+                                               {"User-Agent", "hci/1.0"},
+                                               {"X-GitHub-Api-Version", "2022-11-28"}},
+                                   cpr::Timeout{15000});
+        if (r.status_code != 200) {
+            if (error) *error = "GitHub API HTTP " + std::to_string(r.status_code);
+            return {};
+        }
     nlohmann::json j = nlohmann::json::parse(r.text, nullptr, false);
     if (j.is_discarded() || !j.contains("assets")) {
         if (error) *error = "GitHub API: unexpected payload";
@@ -163,6 +165,10 @@ std::string fetchGitHubAssetUrl(const std::string& repo,
     }
     if (error) *error = "GitHub API: no matching asset for '" + namePattern + "'";
     return {};
+    } catch (const std::exception& e) {
+        if (error) *error = std::string("GitHub API request failed: ") + e.what();
+        return {};
+    }
 }
 
 } // namespace
@@ -392,22 +398,26 @@ bool FlowRunner::handleUiStep(FlowStep& step, std::string& error)
         // Git strategy page: auto-detect system git, let the user choose
         // bundled vs system; decision lands in vars.gitMode (and the
         // detection result in vars.gitSystemAvailable).
+        // Git strategy selection: a pre-set mode (CLI args / extension handlers)
+        // wins - no picker, no override.
+        std::string mode = ctx_.vars().get("gitMode");
         std::string sysPath;
         bool available = hci::exec::findSystemGit(&sysPath);
         ctx_.vars().setBool("gitSystemAvailable", available);
         if (!sysPath.empty()) ctx_.vars().set("gitSystemPath", sysPath);
         Log::Info(std::string("system git ") + (available ? "found: " + sysPath : "not found"));
-        std::string mode;
-        std::string def = step.params.value("default", "");
-        if (def.empty()) def = available ? "system" : "bundled";
-        bool showInstallSystem =
-            step.params.value("installSystemOption", false) ||
-            ctx_.vars().getBool("showInstallSystem");
-        if (!ui_->onGit(available, mode, def, showInstallSystem)) { error = "cancelled by user"; return false; }
-        if (mode.empty()) mode = def;
+        if (mode.empty()) {
+            std::string def = step.params.value("default", "");
+            if (def.empty()) def = available ? "system" : "bundled";
+            bool showInstallSystem =
+                step.params.value("installSystemOption", false) ||
+                ctx_.vars().getBool("showInstallSystem");
+            if (!ui_->onGit(available, mode, def, showInstallSystem)) { error = "cancelled by user"; return false; }
+            if (mode.empty()) mode = def;
+        }
         ctx_.vars().set("gitMode", mode);
         ctx_.vars().setBool("gitUseSystem", mode == "system");
-        ctx_.vars().setBool("gitDownload", mode == "bundled");
+        ctx_.vars().setBool("gitDownload", mode != "system");
         return true;
     }
     if (step.ui == "components") {

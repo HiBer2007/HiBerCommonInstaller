@@ -313,29 +313,37 @@ bool downloadFile(const std::string& url, const std::string& destPath,
         if (error) *error = "cannot open output file: " + destPath;
         return false;
     }
-    cpr::Session session;
-    session.SetUrl(cpr::Url{url});
-    session.SetTimeout(cpr::Timeout{60000});
-    if (progress) {
-        session.SetProgressCallback(cpr::ProgressCallback(
-            [progress](cpr::cpr_off_t downloadTotal, cpr::cpr_off_t downloadNow,
-                       cpr::cpr_off_t, cpr::cpr_off_t, intptr_t) {
-                progress(static_cast<long long>(downloadNow),
-                         static_cast<long long>(downloadTotal));
-                return true;
-            }));
-    }
-    cpr::Response r = session.Download(f);
-    f.close();
-    if (!r.error.message.empty() || r.status_code < 200 || r.status_code >= 300) {
-        if (error) *error = r.error.message.empty()
-            ? "HTTP " + std::to_string(r.status_code)
-            : r.error.message;
+    try {
+        cpr::Session session;
+        session.SetUrl(cpr::Url{url});
+        session.SetTimeout(cpr::Timeout{60000});
+        if (progress) {
+            session.SetProgressCallback(cpr::ProgressCallback(
+                [progress](cpr::cpr_off_t downloadTotal, cpr::cpr_off_t downloadNow,
+                           cpr::cpr_off_t, cpr::cpr_off_t, intptr_t) {
+                    progress(static_cast<long long>(downloadNow),
+                             static_cast<long long>(downloadTotal));
+                    return true;
+                }));
+        }
+        cpr::Response r = session.Download(f);
+        f.close();
+        if (!r.error.message.empty() || r.status_code < 200 || r.status_code >= 300) {
+            if (error) *error = r.error.message.empty()
+                ? "HTTP " + std::to_string(r.status_code)
+                : r.error.message;
+            std::error_code ec;
+            fs::remove(fs::u8path(destPath), ec);
+            return false;
+        }
+        return true;
+    } catch (const std::exception& e) {
+        f.close();
+        if (error) *error = std::string("download failed: ") + e.what();
         std::error_code ec;
         fs::remove(fs::u8path(destPath), ec);
         return false;
     }
-    return true;
 }
 
 // ------------------------------------------------------------------

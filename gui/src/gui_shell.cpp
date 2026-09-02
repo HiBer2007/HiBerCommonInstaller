@@ -19,6 +19,7 @@
 #include <QDialogButtonBox>
 #include <QAbstractAnimation>
 #include <QDir>
+#include <QEasingCurve>
 #include <QFile>
 #include <QFrame>
 #include <QGraphicsOpacityEffect>
@@ -268,10 +269,38 @@ bool GuiShell::blockOnPage(QWidget* page, const QString& nextText,
     stack_->addWidget(page);
     stack_->setCurrentWidget(page);
 
-    // Size adapts to the page content on every step (computed, not fixed).
+    // Content-driven window sizing with an animated transition (same effect
+    // as the main program wizard: geometry animation, 200ms OutCubic).
     {
         QSize hint = page->sizeHint();
-        resize(qMax(hint.width(), 640), qMax(hint.height(), 460));
+        int w = qMax(hint.width(), 560);
+        if (page->layout()) {
+            int hfw = page->layout()->heightForWidth(w);
+            if (hfw > 0 && hfw < hint.height() * 3) hint.setHeight(hfw);
+        }
+        int h = qMax(hint.height(), 300);
+        // + header divider + footer buttons overhead
+        h += (headerLine_ && headerLine_->isVisible() ? 26 : 0) + 60;
+        if (screen()) {
+            QRect avail = screen()->availableGeometry();
+            w = qMin(w, avail.width() - 60);
+            h = qMin(h, avail.height() - 120);
+        }
+        const QRect cur = geometry();
+        const QRect target(cur.x(), cur.y(), w, h);
+        if (cur != target) {
+            auto* anim = new QPropertyAnimation(this, "geometry", this);
+            anim->setDuration(200);
+            QEasingCurve easing(QEasingCurve::OutCubic);
+            anim->setEasingCurve(easing);
+            anim->setStartValue(cur);
+            anim->setEndValue(target);
+            QObject::connect(anim, &QPropertyAnimation::finished, this,
+                             [this, target]() { setGeometry(target); });
+            anim->start(QAbstractAnimation::DeleteWhenStopped);
+        } else {
+            setGeometry(target);
+        }
     }
 
     // Page transition fade-in (same effect the main program wizard uses:
