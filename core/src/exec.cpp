@@ -252,6 +252,13 @@ bool runProcess(const std::vector<std::string>& command, int waitMs,
     ::CloseHandle(hFile);
 
     result.launched = true;
+    if (waitMs < 0) {
+        // Detach: fire-and-forget (start an app, don't wait for it).
+        ::CloseHandle(pi.hThread);
+        ::CloseHandle(pi.hProcess);
+        result.exitCode = 0;
+        return true;
+    }
     DWORD wait = (waitMs <= 0) ? INFINITE : static_cast<DWORD>(waitMs);
     DWORD rc = ::WaitForSingleObject(pi.hProcess, wait);
     if (rc == WAIT_TIMEOUT) {

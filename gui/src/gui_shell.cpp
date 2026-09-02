@@ -617,10 +617,7 @@ void GuiFlowUi::onFinish(bool success, const std::string& message,
                          const std::vector<std::string>& launchOptions)
 {
     if (autopilot_) {
-        if (success && !launchExe.empty()) {
-            exec::ProcessResult r;
-            exec::runProcess({launchExe}, 0, r);
-        }
+        // Headless/CI: do NOT launch any program (it would block the run).
         return;
     }
     nlohmann::json params;
@@ -640,7 +637,7 @@ void GuiFlowUi::onFinish(bool success, const std::string& message,
 
     if (!success) return;
     if (!launchOptions.empty()) {
-        // Launch the user-selected options (each "name=absPath").
+        // Launch the user-selected options (each "name=absPath"), detached.
         QVariantList sel = res.toList();
         for (auto& s : sel) {
             std::string item = s.toString().toUtf8().toStdString();
@@ -648,12 +645,12 @@ void GuiFlowUi::onFinish(bool success, const std::string& message,
             std::string path = eq == std::string::npos ? item : item.substr(eq + 1);
             if (!path.empty()) {
                 exec::ProcessResult r;
-                exec::runProcess({path}, 0, r);
+                exec::runProcess({path}, -1, r); // detach: do not wait
             }
         }
     } else if (res.toBool() && !launchExe.empty()) {
         exec::ProcessResult r;
-        exec::runProcess({launchExe}, 0, r);
+        exec::runProcess({launchExe}, -1, r); // detach
     }
 }
 
