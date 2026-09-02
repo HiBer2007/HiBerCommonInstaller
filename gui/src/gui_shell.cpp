@@ -21,6 +21,7 @@
 #include <QDir>
 #include <QEasingCurve>
 #include <QFile>
+#include <QScreen>
 #include <QFrame>
 #include <QGraphicsOpacityEffect>
 #include <QLabel>
