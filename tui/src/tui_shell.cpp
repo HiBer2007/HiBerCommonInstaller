@@ -165,10 +165,16 @@ std::string ansi(const char* code, const std::string& text)
 
 // ------------------------------------------------------------------
 TuiShell::TuiShell(const hci::ProductConfig& product, const std::string& flowFile,
-                   const std::string& installPath)
+                   const std::string& installPath, const std::string& language)
     : product_(product), flowFile_(flowFile)
 {
     if (!installPath.empty()) ctx_.vars().set("installDir", installPath);
+    if (!language.empty()) {
+        lang_ = language;
+        ctx_.vars().set("language", language);
+    } else {
+        lang_ = product.defaultLanguage.empty() ? "en" : product.defaultLanguage;
+    }
     autopilot_ = !port::getEnv("HCI_TUI_AUTOPILOT").empty();
     std::string cols = port::getEnv("COLUMNS");
     if (!cols.empty()) {
@@ -324,7 +330,7 @@ bool TuiFlowUi::onWelcome(const std::string& productName,
     shell_.print(entry::renderBanner(productName, product.bannerFont));
     shell_.printTitle(productName + " - setup");
     if (autopilot_) return true;
-    shell_.prompt("Press Enter to continue");
+    shell_.prompt(shell_.tr("Press Enter to continue"));
     return true;
 }
 
@@ -332,7 +338,7 @@ bool TuiFlowUi::onLicense(const std::string& text, bool& accepted)
 {
     if (autopilot_) { accepted = true; return true; }
     shell_.clear();
-    shell_.printTitle("License");
+    shell_.printTitle(shell_.tr("License"));
     // Truncate long license text to the first 40 lines.
     std::vector<std::string> lines;
     {
@@ -344,14 +350,14 @@ bool TuiFlowUi::onLicense(const std::string& text, bool& accepted)
         for (auto& wl : wrapText(l, shell_.width())) shell_.print(wl);
     }
     if (text.size() > 0 && lines.size() == 40) shell_.print("[... truncated ...]");
-    accepted = shell_.confirm("\nAccept the license?");
+    accepted = shell_.confirm("\n" + shell_.tr("Accept the license?"));
     return true;
 }
 
 bool TuiFlowUi::onPath(std::string& path, const std::string& defaultPath)
 {
     if (autopilot_) { if (path.empty()) path = defaultPath; return true; }
-    std::string value = shell_.prompt("Install directory", path.empty() ? defaultPath : path);
+    std::string value = shell_.prompt(shell_.tr("Install directory"), path.empty() ? defaultPath : path);
     path = value;
     return true;
 }
@@ -385,7 +391,7 @@ bool TuiFlowUi::onInput(const std::string& prompt, std::string& value, bool requ
     if (autopilot_) return !required;
     value = shell_.prompt(prompt, "");
     if (required && value.empty()) {
-        shell_.printError("A value is required");
+        shell_.printError(shell_.tr("A value is required"));
         return onInput(prompt, value, required);
     }
     return true;

@@ -214,5 +214,27 @@ void setEnv(const std::string& name, const std::string& value)
 #endif
 }
 
+std::string expandEnv(const std::string& text)
+{
+    std::string out;
+    out.reserve(text.size());
+    size_t i = 0;
+    while (i < text.size()) {
+        if (text[i] == '%') {
+            size_t close = text.find('%', i + 1);
+            if (close != std::string::npos && close > i + 1) {
+                std::string name = text.substr(i + 1, close - i - 1);
+                std::string val = getEnv(name);
+                out += val; // unknown var -> empty per getEnv fallback
+                i = close + 1;
+                continue;
+            }
+        }
+        out += text[i];
+        ++i;
+    }
+    return out;
+}
+
 } // namespace port
 } // namespace hci

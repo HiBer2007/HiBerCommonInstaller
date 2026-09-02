@@ -53,6 +53,7 @@ public:
     bool onLanguage(std::string& selected, const std::string& def) override;
     void onStepParam(const nlohmann::json& params, bool canGoBack) override;
     bool backRequested() const override;
+    bool onElevate(const std::string& reason, bool autoRestart) override;
     bool onWelcome(const std::string& productName,
                    const hci::ProductConfig& product) override;
     bool onLicense(const std::string& text, bool& accepted) override;
@@ -82,11 +83,16 @@ public:
     GuiShell(const hci::ProductConfig& product, const std::string& flowFile,
              const std::string& installPath, bool silent = false,
              std::vector<std::string> extensionArgs = {},
+             const std::string& language = "",
              QWidget* parent = nullptr);
     ~GuiShell() override;
 
     // Runs the flow; returns process exit code (0 success / 1 failure).
     int run();
+
+    // Shows the main window (story: hidden until the language picker is
+    // resolved so the welcome page renders only afterwards).
+    void setVisibleForFlow();
 
     // Blocks until the user clicks Next on the given page (or cancels/back).
     // Returns false when cancelled or when back was requested (query

@@ -79,6 +79,8 @@ ProductConfig ProductConfig::loadString(const std::string& jsonText)
     if (j.contains("flows") && j["flows"].is_object()) {
         p.flows.install = j["flows"].value("install", "");
         p.flows.uninstall = j["flows"].value("uninstall", "");
+        p.flows.repair = j["flows"].value("repair", "");
+        p.flows.upgrade = j["flows"].value("upgrade", "");
     }
     if (j.contains("payload") && j["payload"].is_object()) {
         p.payload.source = j["payload"].value("source", "");
@@ -89,6 +91,11 @@ ProductConfig ProductConfig::loadString(const std::string& jsonText)
     if (j.contains("uninstall") && j["uninstall"].is_object()) {
         p.uninstall.registryKey = j["uninstall"].value("registryKey", "");
         p.uninstall.displayName = j["uninstall"].value("displayName", p.productName);
+    }
+    if (j.contains("elevation") && j["elevation"].is_object()) {
+        p.elevation.request = j["elevation"].value("request", false);
+        p.elevation.autoRestart = j["elevation"].value("autoRestart", true);
+        p.elevation.reason = j["elevation"].value("reason", "");
     }
     return p;
 }

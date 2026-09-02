@@ -34,11 +34,24 @@ struct InstallConfSpec {
 struct ProductFlows {
     std::string install;   // path or "qrc:/..." of install flow
     std::string uninstall; // path or "qrc:/..." of uninstall flow
+    std::string repair;    // optional: repair/reinstall flow
+    std::string upgrade;   // optional: upgrade flow
 };
 
 struct UninstallSpec {
     std::string registryKey; // e.g. "Software/Company/App"
     std::string displayName;
+};
+
+// Elevation (UAC) request policy:
+//   "elevation": { "request": true, "autoRestart": true, "reason": "..." }
+//   request     - ask for administrator rights up front (start of flow)
+//   autoRestart - relaunch as admin automatically when requested (default true)
+//   reason      - message shown to the user before restarting
+struct ElevationSpec {
+    bool request = false;
+    bool autoRestart = true;
+    std::string reason;
 };
 
 struct ProductConfig {
@@ -58,6 +71,7 @@ struct ProductConfig {
     ProductFlows flows;
     DeploySpec payload;
     UninstallSpec uninstall;
+    ElevationSpec elevation;
 
     // Load from a JSON file (UTF-8). Throws std::runtime_error on failure.
     static ProductConfig loadFile(const std::string& jsonPath);

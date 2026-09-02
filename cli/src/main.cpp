@@ -44,6 +44,7 @@ struct CliOptions {
     bool help = false;
     bool version = false;
     std::string installPath;
+    std::string language;      // --lang code ("en"/"zh")
     std::string productJson = "product.json";
     std::string flow;          // "" -> install
     bool jsonOut = false;
@@ -61,6 +62,7 @@ void printUsage(std::ostream& os)
           "  --gui | --tui | --cli     shell mode (default: product defaultMode)\n"
           "  --silent, -s              non-interactive (default answers)\n"
           "  --path <dir>              install path override\n"
+          "  --lang <code>             language: en | zh (presets language)\n"
           "  --product <file.json>     product config (default ./product.json)\n"
           "  --flow <id|file.json>     flow: install | uninstall | path\n"
           "  --json                    JSON protocol blocks on stdout\n"
@@ -84,6 +86,7 @@ bool parseArgs(int argc, char** argv, CliOptions& o, std::string& err)
         if (a == "--json") { o.jsonOut = true; continue; }
         if (a == "--verbose") { o.verbose = true; continue; }
         if (a == "--path" && i + 1 < argc) { o.installPath = argv[++i]; continue; }
+        if (a == "--lang" && i + 1 < argc) { o.language = argv[++i]; continue; }
         if (a == "--product" && i + 1 < argc) { o.productJson = argv[++i]; continue; }
         if (a == "--flow" && i + 1 < argc) { o.flow = argv[++i]; continue; }
         if (a == "--extensions" && i + 1 < argc) { o.extensionsDir = argv[++i]; continue; }
@@ -303,6 +306,8 @@ int main(int argc, char* argv[])
         std::string f = opt.flow;
         if (f.empty() || f == "install") f = product.flows.install;
         else if (f == "uninstall") f = product.flows.uninstall;
+        else if (f == "repair") f = product.flows.repair;
+        else if (f == "upgrade") f = product.flows.upgrade;
         if (f.empty()) {
             std::cerr << "Error: no flow defined (--flow or product flows.install)\n";
             return 2;
@@ -313,6 +318,7 @@ int main(int argc, char* argv[])
     // Context + engine + extensions.
     InstallContext ctx;
     if (!opt.installPath.empty()) ctx.vars().set("installDir", opt.installPath);
+    if (!opt.language.empty()) ctx.vars().set("language", opt.language);
     ctx.vars().setBool("silent", opt.silent);
 
     auto script = createLuaEngine();

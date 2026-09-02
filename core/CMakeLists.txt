@@ -2,9 +2,11 @@
 add_library(hci_core
     src/bus.cpp
     src/context.cpp
+    src/elevation.cpp
     src/entry.cpp
     src/exec.cpp
     src/extension_registry.cpp
+    src/lang.cpp
     src/log.cpp
     src/payload.cpp
     src/port.cpp

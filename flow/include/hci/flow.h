@@ -89,6 +89,14 @@ public:
     // When an interaction returns false, the runner checks this: true means
     // the user asked to go back to the previous step (not a cancel/abort).
     virtual bool backRequested() const { return false; }
+
+    // Elevation request (start of flow via product elevation spec, or the
+    // "elevate" ui step). Default: announce + relaunch as admin, then exit
+    // this (unprivileged) process. Return false = user declined / cannot
+    // elevate: the run continues WITHOUT privileges (v1).
+    virtual bool onElevate(const std::string& reason, bool autoRestart);
+    // (declaration lives here; default implementation in flow.cpp keeps the
+    //  core-free shells working; shells may override to prompt first)
 };
 
 // ------------------------------------------------------------------

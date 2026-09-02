@@ -1,5 +1,6 @@
 #include "hci/flow.h"
 
+#include "hci/elevation.h"
 #include "hci/entry.h"
 #include "hci/exec.h"
 #include "hci/extension_registry.h"
@@ -12,6 +13,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -79,6 +81,24 @@ FlowRunner::FlowRunner(ProductConfig& product, InstallContext& ctx,
                        IFlowUi* ui, IScriptEngine* script)
     : product_(product), ctx_(ctx), ui_(ui), script_(script)
 {
+}
+
+// ------------------------------------------------------------------
+// Default elevation handling (shells may override to prompt first).
+// ------------------------------------------------------------------
+bool IFlowUi::onElevate(const std::string& reason, bool autoRestart)
+{
+    (void)autoRestart;
+    std::cerr << "Administrator privileges required";
+    if (!reason.empty()) std::cerr << ": " << reason;
+    std::cerr << "\n";
+    std::string err;
+    if (hci::elevation::relaunchAsAdmin(err)) {
+        // The elevated instance takes over; this process is obsolete.
+        std::exit(0);
+    }
+    std::cerr << "Elevation failed: " << err << " (continuing unprivileged)\n";
+    return false;
 }
 
 namespace {
@@ -151,9 +171,22 @@ int FlowRunner::run(FlowSpec& flow)
     if (!ctx_.vars().has("productName")) ctx_.vars().set("productName", product_.productName);
     if (!ctx_.vars().has("company")) ctx_.vars().set("company", product_.company);
     if (!ctx_.vars().has("productVersion")) ctx_.vars().set("productVersion", product_.version);
-    if (!ctx_.vars().has("installDir")) ctx_.vars().set("installDir", product_.defaultInstallPath);
+    if (!ctx_.vars().has("installDir"))
+        ctx_.vars().set("installDir", port::expandEnv(product_.defaultInstallPath));
     if (!ctx_.vars().has("tempDir")) ctx_.vars().set("tempDir", port::tempDir());
     if (!ctx_.vars().has("exeDir")) ctx_.vars().set("exeDir", port::exeDir());
+
+    // Up-front elevation request (product policy; per-flow controllable by
+    // NOT setting it and using an "elevate" step instead).
+    if (product_.elevation.request && !hci::elevation::isElevated()) {
+        if (ui_) {
+            if (ui_->onElevate(product_.elevation.reason,
+                               product_.elevation.autoRestart)) {
+                return 0; // relaunch issued; this process is about to exit
+            }
+            // declined/unavailable: continue unprivileged
+        }
+    }
 
     size_t i = 0;
     history_.clear();
@@ -270,15 +303,31 @@ bool FlowRunner::handleUiStep(FlowStep& step, std::string& error)
 
     if (step.ui == "language") {
         // Optional language selection (welcome precedes it in the flow);
-        // "default" param or product.defaultLanguage sets the preselect.
-        std::string def = step.params.value("default", "");
-        if (def.empty()) def = product_.defaultLanguage;
-        if (def.empty()) def = "en";
-        std::string sel = def;
-        if (!ui_->onLanguage(sel, def)) { error = "cancelled by user"; return false; }
-        if (sel.empty()) sel = def;
+        // precedence: --lang preset (vars) > params.default > product
+        // defaultLanguage > "en". The picker only opens when no preset exists.
+        std::string sel = ctx_.vars().get("language");
+        if (sel.empty()) {
+            std::string def = step.params.value("default", "");
+            if (def.empty()) def = product_.defaultLanguage;
+            if (def.empty()) def = "en";
+            if (!ui_->onLanguage(sel, def)) { error = "cancelled by user"; return false; }
+            if (sel.empty()) sel = def;
+        }
         ctx_.vars().set("language", sel);
         return true;
+    }
+
+    if (step.ui == "elevate") {
+        // Midway elevation request (any mode). The elevated relaunch passes
+        // this step trivially (isElevated()).
+        if (hci::elevation::isElevated()) return true;
+        std::string reason = step.params.value("reason", "");
+        bool autoRestart = step.params.value("autoRestart", true);
+        if (!ui_->onElevate(reason, autoRestart)) {
+            error = "elevation declined";
+            return false;
+        }
+        return true; // relaunch issued; process exits in the default handler
     }
 
     if (step.ui == "welcome") {
@@ -512,6 +561,12 @@ bool FlowRunner::handleExecStep(FlowStep& step, std::string& error)
     }
 
     if (step.type == "shortcut") {
+        // "enabled": false lets the flow skip shortcut creation entirely
+        // (test/quiet installs); which shortcuts exist is the step list.
+        if (!step.params.value("enabled", true)) {
+            if (bus_) bus_->publish("hci/step", {{"id", step.id}, {"state", "skipped"}});
+            return true;
+        }
         exec::ShortcutKind kind = step.params.value("kind", "desktop") == "startmenu"
             ? exec::ShortcutKind::StartMenu : exec::ShortcutKind::Desktop;
         std::string name = step.params.value("name", "");
@@ -598,6 +653,8 @@ int runInstall(const ProductConfig& product, const std::string& flowPath,
         InstallContext ctx;
         if (!options.installPath.empty())
             ctx.vars().set("installDir", options.installPath);
+        if (!options.language.empty())
+            ctx.vars().set("language", options.language);
         ctx.vars().setBool("silent", options.silent);
 
         FlowSpec flow = FlowSpec::loadFile(resolveFlowPath(flowPath));

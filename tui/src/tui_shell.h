@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "hci/flow.h"
+#include "hci/lang.h"
 #include "hci/product.h"
 
 namespace hci {
@@ -28,7 +29,7 @@ std::string ansi(const char* code, const std::string& text); // wrap with color
 class TuiShell {
 public:
     TuiShell(const hci::ProductConfig& product, const std::string& flowFile,
-             const std::string& installPath);
+             const std::string& installPath, const std::string& language = "");
 
     int run();
 
@@ -53,6 +54,9 @@ public:
     const std::string& flowFile() const { return flowFile_; }
     bool autopilot() const { return autopilot_; }
     size_t width() const { return width_; }
+    const std::string& language() const { return lang_; }
+    void setLanguage(const std::string& l) { lang_ = l; }
+    std::string tr(const std::string& en) const { return hci::lang::tr(lang_, en); }
 
 private:
     hci::ProductConfig product_;
@@ -60,6 +64,7 @@ private:
     hci::InstallContext ctx_;
     bool autopilot_ = false;
     size_t width_ = 80;
+    std::string lang_; // UI language ("en"|"zh")
 };
 
 // TuiFlowUi: IFlowUi rendered by TuiShell.

@@ -3,7 +3,7 @@
 //          input | finish   (progress handled directly by GuiShell)
 
 #include "gui_shell.h"
-#include "translate.h"
+#include "hci/lang.h"
 
 #include <QCheckBox>
 #include <QDir>
@@ -57,7 +57,7 @@ QWidget* pageWelcome(const nlohmann::json&, GuiShell& shell, QVariant&)
 
     l->addWidget(welcomeTitle(p.productName));
 
-    auto* desc = new QLabel(QString::fromUtf8(hci::gui::tr(shell.language(),
+    auto* desc = new QLabel(QString::fromUtf8(hci::lang::tr(shell.language(),
         "This wizard will guide you through the installation.").c_str()), w);
     desc->setWordWrap(true);
     l->addWidget(desc);
@@ -83,7 +83,7 @@ QWidget* pageLicense(const nlohmann::json& params, GuiShell& shell, QVariant& re
     text->setPlainText(QString::fromUtf8(params.value("text", "").c_str()));
     l->addWidget(text, 1);
     auto* accept = new QCheckBox(QString::fromUtf8(
-        hci::gui::tr(shell.language(), "I accept the license").c_str()), w);
+        hci::lang::tr(shell.language(), "I accept the license").c_str()), w);
     l->addWidget(accept);
     res = false;
     shell.setNextEnabled(false);
@@ -99,16 +99,16 @@ QWidget* pagePath(const nlohmann::json& params, GuiShell& shell, QVariant& res)
     auto* w = new QWidget(&shell);
     auto* l = new QVBoxLayout(w);
     auto* lbl = new QLabel(QString::fromUtf8(
-        hci::gui::tr(shell.language(), "Install directory:").c_str()), w);
+        hci::lang::tr(shell.language(), "Install directory:").c_str()), w);
     l->addWidget(lbl);
     auto* edit = new QLineEdit(QString::fromUtf8(params.value("default", "").c_str()), w);
     auto* browse = new QPushButton(QString::fromUtf8(
-        hci::gui::tr(shell.language(), "Browse...").c_str()), w);
+        hci::lang::tr(shell.language(), "Browse...").c_str()), w);
     auto* hl = new QHBoxLayout();
     hl->addWidget(edit, 1);
     hl->addWidget(browse);
     l->addLayout(hl);
-    auto* note = new QLabel(QString::fromUtf8(hci::gui::tr(shell.language(),
+    auto* note = new QLabel(QString::fromUtf8(hci::lang::tr(shell.language(),
         "The target directory will be cleared before installation.").c_str()), w);
     note->setWordWrap(true);
     l->addWidget(note);
@@ -116,7 +116,7 @@ QWidget* pagePath(const nlohmann::json& params, GuiShell& shell, QVariant& res)
 
     QObject::connect(browse, &QPushButton::clicked, &shell, [&shell, edit]() {
         QString d = QFileDialog::getExistingDirectory(&shell,
-            QString::fromUtf8(hci::gui::tr(shell.language(),
+            QString::fromUtf8(hci::lang::tr(shell.language(),
                 "Choose install directory").c_str()), edit->text());
         if (!d.isEmpty()) edit->setText(d);
     });
@@ -134,7 +134,7 @@ QWidget* pageComponents(const nlohmann::json& params, GuiShell& shell, QVariant&
     auto* w = new QWidget(&shell);
     auto* l = new QVBoxLayout(w);
     l->addWidget(new QLabel(QString::fromUtf8(
-        hci::gui::tr(shell.language(), "Select components:").c_str()), w));
+        hci::lang::tr(shell.language(), "Select components:").c_str()), w));
     QVariantList list;
     if (params.contains("components") && params["components"].is_array()) {
         int idx = 0;
@@ -191,7 +191,7 @@ QWidget* pageConfirm(const nlohmann::json& params, GuiShell& shell, QVariant& re
     lbl->setWordWrap(true);
     l->addWidget(lbl);
     auto* yes = new QCheckBox(QString::fromUtf8(
-        hci::gui::tr(shell.language(), "Yes, continue").c_str()), w);
+        hci::lang::tr(shell.language(), "Yes, continue").c_str()), w);
     yes->setChecked(params.value("defaultYes", true));
     l->addWidget(yes);
     l->addStretch(1);
@@ -238,7 +238,7 @@ QWidget* pageFinish(const nlohmann::json& params, GuiShell& shell, QVariant& res
     res = false;
     if (hasLaunch) {
         auto* launch = new QCheckBox(QString::fromUtf8(
-            hci::gui::tr(shell.language(), "Launch now").c_str()), w);
+            hci::lang::tr(shell.language(), "Launch now").c_str()), w);
         launch->setChecked(true);
         l->addWidget(launch);
         QObject::connect(launch, &QCheckBox::toggled, &shell, [&res](bool on) {
@@ -254,7 +254,7 @@ QWidget* pageFallback(const nlohmann::json& params, GuiShell& shell, QVariant&)
     auto* w = new QWidget(&shell);
     auto* l = new QVBoxLayout(w);
     auto* lbl = new QLabel(QString::fromUtf8(
-        hci::gui::tr(shell.language(), "Unknown page: ").c_str()) +
+        hci::lang::tr(shell.language(), "Unknown page: ").c_str()) +
         QString::fromUtf8(params.value("id", "").c_str()), w);
     lbl->setWordWrap(true);
     l->addWidget(lbl);

@@ -12,6 +12,8 @@
   "version": "1.0.0",                     // ProductConfig::version（默认 "1.0.0"）→ 变量 {productVersion}
   "icon": "",                             // ProductConfig::icon（暂未启用）
   "defaultMode": "gui",                   // 默认壳："gui" | "tui" | "cli"（defaultMode 默认 "gui"）
+  "defaultLanguage": "zh",                // GUI 默认语言 "en"|"zh"（缺省 "en"）；language 步骤 default 优先
+  "backEnabled": true,                    // GUI「上一步」按钮全局开关（默认 true）
   "defaultInstallPath": "C:\\Program Files\\MyApp",  // 默认安装目录（可空 → 由流程 path 页决定）
   "banner": { "font": "slant" },          // bannerFont（默认 "slant"；未知字体回退内置表）
 
@@ -62,7 +64,7 @@
 
 | JSON 路径 | C++ 类型 | 说明 |
 |---|---|---|
-| 顶层 | `hci::ProductConfig` | 全部标量字段同名（`productName/company/orgName/version/icon/defaultMode/defaultInstallPath/bannerFont`）；`loadFile/loadString` 静态工厂 |
+| 顶层 | `hci::ProductConfig` | 全部标量字段同名（`productName/company/orgName/version/icon/defaultMode/defaultLanguage/backEnabled/defaultInstallPath/bannerFont`）；`loadFile/loadString` 静态工厂 |
 | `components[]` | `hci::ProductComponent` | `id/label/exe/shortcutName/required/defaultChecked` |
 | `shortcuts[]` | `hci::ShortcutSpec` | `kind/name/target/args`（kind: "desktop"\|"startmenu"） |
 | `installConf` | `hci::InstallConfSpec` | `fileName/header/template_`（JSON 键 `template`） |

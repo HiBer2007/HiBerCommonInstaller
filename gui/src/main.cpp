@@ -45,6 +45,7 @@ struct GuiOptions {
 #endif
     std::string flow;
     std::string installPath;
+    std::string language;      // --lang code ("en"/"zh")
     bool silent = false;
     bool help = false;
     bool version = false;
@@ -60,6 +61,7 @@ bool parseArgs(int argc, char** argv, GuiOptions& o, std::string& err)
         if (a == "--gui") continue;
         if (a == "--silent" || a == "-s") { o.silent = true; continue; }
         if (a == "--path" && i + 1 < argc) { o.installPath = argv[++i]; continue; }
+        if (a == "--lang" && i + 1 < argc) { o.language = argv[++i]; continue; }
         if (a == "--product" && i + 1 < argc) { o.productJson = argv[++i]; continue; }
         if (a == "--flow" && i + 1 < argc) { o.flow = argv[++i]; continue; }
         // Unknown args are routed to extension cliArgs handlers (e.g. --with-editor).
@@ -96,7 +98,7 @@ int main(int argc, char* argv[])
         std::cout << "HiBer Common Installer Module - GUI shell\n"
                      "Usage:\n"
                      "  hci_gui [--product <file.json>] [--flow install|uninstall|file.json]\n"
-                     "          [--path <dir>]\n"
+                     "          [--path <dir>] [--lang <en|zh>] [--silent]\n"
                      "Exit codes: 0 success, 1 failure, 2 usage error.\n";
         return 0;
     }
@@ -142,6 +144,8 @@ int main(int argc, char* argv[])
         std::string f = opt.flow;
         if (f.empty() || f == "install") f = product.flows.install;
         else if (f == "uninstall") f = product.flows.uninstall;
+        else if (f == "repair") f = product.flows.repair;
+        else if (f == "upgrade") f = product.flows.upgrade;
         if (f.empty()) {
             std::cerr << "Error: no flow defined (--flow or product flows.install)\n";
             return 2;
@@ -165,7 +169,8 @@ int main(int argc, char* argv[])
     app.setOrganizationName(QString::fromUtf8(product.orgName.c_str()));
 
     gui::GuiShell shell(product, flowFile, opt.installPath, opt.silent,
-                        opt.extensionArgs);
-    if (!opt.silent) shell.show(); // silent: headless run, no window
+                        opt.extensionArgs, opt.language);
+    // The main window is shown by the flow itself (after the language
+    // picker; silent runs never show it).
     return shell.run();
 }

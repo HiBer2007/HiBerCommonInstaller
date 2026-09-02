@@ -1,6 +1,7 @@
 #include "gui_shell.h"
 
 #include "hci/entry.h"
+#include "hci/elevation.h"
 #include "hci/exec.h"
 #include "hci/extension.h"
 #include "hci/log.h"
@@ -8,8 +9,10 @@
 #include "hci/script.h"
 #include "hci/flow.h"
 
+#include <cstdlib>
+
 #include "resource_utils.h"
-#include "translate.h"
+#include "hci/lang.h"
 
 #include <progress_card.h>
 
@@ -55,12 +58,16 @@ std::string dirOf(const std::string& p)
 // ------------------------------------------------------------------
 GuiShell::GuiShell(const hci::ProductConfig& product, const std::string& flowFile,
                    const std::string& installPath, bool silent,
-                   std::vector<std::string> extensionArgs, QWidget* parent)
+                   std::vector<std::string> extensionArgs,
+                   const std::string& language, QWidget* parent)
     : QWidget(parent), product_(product), flowFile_(flowFile), silent_(silent),
       extensionArgs_(std::move(extensionArgs)),
-      lang_(product.defaultLanguage.empty() ? "en" : product.defaultLanguage)
+      lang_(language.empty()
+            ? (product.defaultLanguage.empty() ? "en" : product.defaultLanguage)
+            : language)
 {
     if (!installPath.empty()) ctx_.vars().set("installDir", installPath);
+    if (!language.empty()) ctx_.vars().set("language", language);
 
     setWindowTitle(QString::fromUtf8(product.productName.c_str()) +
                    QStringLiteral(" Installer"));
@@ -81,12 +88,12 @@ GuiShell::GuiShell(const hci::ProductConfig& product, const std::string& flowFil
     statusLabel_->setStyleSheet(QStringLiteral("color: #888;"));
     footer->addWidget(statusLabel_, 1);
     backBtn_ = new QPushButton(QString::fromUtf8(
-        hci::gui::tr(lang_, "Back").c_str()), this);
+        hci::lang::tr(lang_, "Back").c_str()), this);
     backBtn_->setVisible(false);
     nextBtn_ = new QPushButton(QString::fromUtf8(
-        hci::gui::tr(lang_, "Next").c_str()), this);
+        hci::lang::tr(lang_, "Next").c_str()), this);
     cancelBtn_ = new QPushButton(QString::fromUtf8(
-        hci::gui::tr(lang_, "Cancel").c_str()), this);
+        hci::lang::tr(lang_, "Cancel").c_str()), this);
     footer->addWidget(backBtn_);
     footer->addWidget(nextBtn_);
     footer->addWidget(cancelBtn_);
@@ -116,7 +123,7 @@ QWidget* GuiShell::buildProgressPage()
     l->addWidget(progressCard_);
 
     progressStepLabel_ = new QLabel(QString::fromUtf8(
-        hci::gui::tr(lang_, "Preparing...").c_str()), progressPage_);
+        hci::lang::tr(lang_, "Preparing...").c_str()), progressPage_);
     l->addWidget(progressStepLabel_);
 
     progressBar_ = new QProgressBar(progressPage_);
@@ -200,13 +207,18 @@ int GuiShell::run()
     return rc;
 }
 
+void GuiShell::setVisibleForFlow()
+{
+    if (!silent_ && !isVisible()) show();
+}
+
 bool GuiShell::blockOnPage(QWidget* page, const QString& nextText)
 {
     stack_->addWidget(page);
     stack_->setCurrentWidget(page);
     nextBtn_->setText(nextText);
-    backBtn_->setText(QString::fromUtf8(hci::gui::tr(lang_, "Back").c_str()));
-    cancelBtn_->setText(QString::fromUtf8(hci::gui::tr(lang_, "Cancel").c_str()));
+    backBtn_->setText(QString::fromUtf8(hci::lang::tr(lang_, "Back").c_str()));
+    cancelBtn_->setText(QString::fromUtf8(hci::lang::tr(lang_, "Cancel").c_str()));
     backBtn_->setVisible(backVisible_);
     backBtn_->setEnabled(backEnabled_);
     if (!gateNext_) nextBtn_->setEnabled(!nextForced_);
@@ -280,12 +292,12 @@ void GuiShell::showProgress(const QString& stepLabel, int percent)
     if (progressCard_) {
         if (!progressCard_->isActive())
             progressCard_->showCard(QString::fromUtf8(
-                hci::gui::tr(lang_, "Installing...").c_str()), false);
+                hci::lang::tr(lang_, "Installing...").c_str()), false);
         progressCard_->setProgress(percent, stepLabel);
     }
     if (progressStepLabel_)
         progressStepLabel_->setText(stepLabel.isEmpty()
-            ? QString::fromUtf8(hci::gui::tr(lang_, "Working...").c_str())
+            ? QString::fromUtf8(hci::lang::tr(lang_, "Working...").c_str())
             : stepLabel);
     if (progressBar_ && percent >= 0) progressBar_->setValue(percent);
 }
@@ -306,16 +318,20 @@ bool GuiFlowUi::onLanguage(std::string& selected, const std::string& def)
     shell_.setLanguage(def); // defaults apply before any picker interaction
     if (autopilot_) { selected = def; return true; }
 
+    // The main window stays hidden (welcome page not rendered) until the
+    // language picker is resolved.
+    shell_.setVisible(false);
+
     // Small picker window right before the welcome page.
     QDialog dlg(&shell_);
     dlg.setWindowTitle(QString::fromUtf8(
-        hci::gui::tr(def, "Language").c_str()));
+        hci::lang::tr(def, "Language").c_str()));
     auto* l = new QVBoxLayout(&dlg);
     auto* lbl = new QLabel(QString::fromUtf8(
-        hci::gui::tr(def, "Select language:").c_str()), &dlg);
+        hci::lang::tr(def, "Select language:").c_str()), &dlg);
     l->addWidget(lbl);
     auto* list = new QListWidget(&dlg);
-    auto langs = hci::gui::availableLanguages();
+    auto langs = hci::lang::availableLanguages();
     int pre = 0;
     for (size_t i = 0; i < langs.size(); ++i) {
         list->addItem(QString::fromUtf8(langs[i].second.c_str()));
@@ -336,6 +352,37 @@ bool GuiFlowUi::onLanguage(std::string& selected, const std::string& def)
     return true;
 }
 
+bool GuiFlowUi::onElevate(const std::string& reason, bool autoRestart)
+{
+    shell_.setVisibleForFlow(); // the main window exists for the prompt
+    if (autopilot_) {
+        // Headless: relaunch automatically (UAC dialog still appears).
+        std::string err;
+        if (hci::elevation::relaunchAsAdmin(err)) std::exit(0);
+        std::cerr << "Elevation failed: " << err << "\n";
+        return false;
+    }
+    QString text = QString::fromUtf8(reason.c_str());
+    text += QStringLiteral("\n\n");
+    text += QString::fromUtf8(hci::lang::tr(shell_.language(),
+        "This action needs administrator privileges.\n\n"
+        "Restart as administrator and continue?").c_str());
+    int r = QMessageBox::question(&shell_,
+        QString::fromUtf8(hci::lang::tr(shell_.language(),
+            "Administrator privileges required").c_str()),
+        text, QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+    if (r != QMessageBox::Yes) return false;
+    (void)autoRestart;
+    std::string err;
+    if (!hci::elevation::relaunchAsAdmin(err)) {
+        QMessageBox::critical(&shell_,
+            QString::fromUtf8(hci::lang::tr(shell_.language(), "Error").c_str()),
+            QString::fromUtf8(err.c_str()));
+        return false;
+    }
+    std::exit(0); // elevated instance takes over
+}
+
 void GuiFlowUi::onStepParam(const nlohmann::json& params, bool canGoBack)
 {
     shell_.applyStepButtons(params, canGoBack);
@@ -350,11 +397,12 @@ bool GuiFlowUi::onWelcome(const std::string& productName,
                           const hci::ProductConfig&)
 {
     if (autopilot_) return true;
+    shell_.setVisibleForFlow(); // no language step: show before the welcome
     shell_.setStatus(QString::fromUtf8(productName.c_str()));
     QVariant res;
     QWidget* page = createPage("welcome", nlohmann::json::object(), shell_, res);
     return shell_.blockOnPage(page, QString::fromUtf8(
-        hci::gui::tr(shell_.language(), "Next").c_str()));
+        hci::lang::tr(shell_.language(), "Next").c_str()));
 }
 
 bool GuiFlowUi::onLicense(const std::string& text, bool& accepted)
@@ -363,7 +411,7 @@ bool GuiFlowUi::onLicense(const std::string& text, bool& accepted)
     QVariant res;
     QWidget* page = createPage("license", nlohmann::json{{"text", text}}, shell_, res);
     if (!shell_.blockOnPage(page, QString::fromUtf8(
-            hci::gui::tr(shell_.language(), "Accept").c_str()))) return false;
+            hci::lang::tr(shell_.language(), "Accept").c_str()))) return false;
     accepted = res.toBool();
     return true;
 }
@@ -375,15 +423,15 @@ bool GuiFlowUi::onPath(std::string& path, const std::string& defaultPath)
     std::string p = path.empty() ? defaultPath : path;
     QWidget* page = createPage("path", nlohmann::json{{"default", p}}, shell_, res);
     if (!shell_.blockOnPage(page, QString::fromUtf8(
-            hci::gui::tr(shell_.language(), "Install").c_str()))) return false;
+            hci::lang::tr(shell_.language(), "Install").c_str()))) return false;
     path = res.toString().toUtf8().toStdString();
     if (!path.empty()) {
         QDir d(QString::fromUtf8(path.c_str()));
         if (d.exists() && !d.entryList(QDir::NoDotAndDotDot | QDir::AllEntries).isEmpty()) {
             int r = QMessageBox::warning(&shell_,
-                QString::fromUtf8(hci::gui::tr(shell_.language(),
+                QString::fromUtf8(hci::lang::tr(shell_.language(),
                     "Directory not empty").c_str()),
-                QString::fromUtf8(hci::gui::tr(shell_.language(),
+                QString::fromUtf8(hci::lang::tr(shell_.language(),
                     "The target directory already contains files.\n\n"
                     "It will be cleared before installation.\n\nContinue?").c_str()),
                 QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
@@ -409,7 +457,7 @@ bool GuiFlowUi::onComponents(const std::vector<hci::ProductComponent>& comps,
     QVariant res;
     QWidget* page = createPage("components", params, shell_, res);
     if (!shell_.blockOnPage(page, QString::fromUtf8(
-            hci::gui::tr(shell_.language(), "Next").c_str()))) return false;
+            hci::lang::tr(shell_.language(), "Next").c_str()))) return false;
     QVariantList list = res.toList();
     for (size_t i = 0; i < comps.size() && i < static_cast<size_t>(list.size()); ++i)
         checked[i] = list[static_cast<int>(i)].toBool();
@@ -427,7 +475,7 @@ bool GuiFlowUi::onOption(const std::string& prompt,
     QVariant res;
     QWidget* page = createPage("option", params, shell_, res);
     if (!shell_.blockOnPage(page, QString::fromUtf8(
-            hci::gui::tr(shell_.language(), "Next").c_str()))) return false;
+            hci::lang::tr(shell_.language(), "Next").c_str()))) return false;
     selected = res.toInt();
     return true;
 }
@@ -440,7 +488,7 @@ bool GuiFlowUi::onConfirm(const std::string& prompt, bool& yes)
                                                          {"defaultYes", yes}},
                                shell_, res);
     if (!shell_.blockOnPage(page, QString::fromUtf8(
-            hci::gui::tr(shell_.language(), "Continue").c_str()))) return false;
+            hci::lang::tr(shell_.language(), "Continue").c_str()))) return false;
     yes = res.toBool();
     return true;
 }
@@ -452,7 +500,7 @@ bool GuiFlowUi::onInput(const std::string& prompt, std::string& value, bool requ
     QWidget* page = createPage("input",
         nlohmann::json{{"prompt", prompt}, {"required", required}}, shell_, res);
     if (!shell_.blockOnPage(page, QString::fromUtf8(
-            hci::gui::tr(shell_.language(), "Next").c_str()))) return false;
+            hci::lang::tr(shell_.language(), "Next").c_str()))) return false;
     value = res.toString().toUtf8().toStdString();
     return true;
 }
@@ -501,7 +549,7 @@ void GuiFlowUi::onFinish(bool success, const std::string& message,
     shell_.applyStepButtons(nlohmann::json{{"buttons",
         nlohmann::json{{"back", false}}}}, false);
     if (!shell_.blockOnPage(page, QString::fromUtf8(
-            hci::gui::tr(shell_.language(), "Finish").c_str()))) return;
+            hci::lang::tr(shell_.language(), "Finish").c_str()))) return;
 
     if (success && res.toBool() && !launchExe.empty()) {
         exec::ProcessResult r;

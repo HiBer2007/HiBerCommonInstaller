@@ -44,5 +44,10 @@ std::string normalizeSlashes(const std::string& p);
 std::string getEnv(const std::string& name, const std::string& fallback = "");
 void setEnv(const std::string& name, const std::string& value);
 
+// Expand %NAME% environment placeholders in a path/text
+// (e.g. "%APPDATA%\\NSUM" -> "C:\\Users\\x\\AppData\\Roaming\\NSUM").
+// Unknown/ill-formed placeholders are left unchanged.
+std::string expandEnv(const std::string& text);
+
 } // namespace port
 } // namespace hci

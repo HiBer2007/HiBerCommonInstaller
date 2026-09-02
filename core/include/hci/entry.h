@@ -18,6 +18,7 @@ struct EntryOptions {
     bool silent = false;       // CLI-style, no interactive UI
     bool jsonOut = false;      // JSON protocol blocks on stdout
     std::string installPath;   // --path override
+    std::string language;      // --lang code ("en"/"zh"); presets vars.language
     std::vector<std::string> extensionArgs; // consumed by extension arg handlers
 
     // Resolve mode: explicit flag wins, otherwise product default.

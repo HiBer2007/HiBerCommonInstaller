@@ -46,8 +46,10 @@ void unregisterAllPages();
 | `input` | 文本输入 | string | 必填时非空 |
 | `finish` | 成败大标题 + 消息 + 「立即运行」勾选 | bool(launch) | — |
 
-- Next/Back/Cancel 页脚按钮；Back 隐藏（流程线性）；Cancel → ctx.cancel() + 终止
-- 交互页经**嵌套事件循环**阻塞（`GuiShell::blockOnPage`），用户点击 Next（或取消）后返回
+- Next/Back/Cancel 页脚按钮；Back（「上一步」）在非首步默认显示（product `backEnabled` 可全局关闭；步骤 `buttons.back:false` 临时禁用），由 FlowRunner 历史回退重跑上一步；Cancel → ctx.cancel() + 终止
+- 交互页经**嵌套事件循环**阻塞（`GuiShell::blockOnPage`），用户点击 Next/Back（或取消）后返回
+- **多语言**：壳文本（按钮/标签/提示）按当前语言渲染（内置 en/zh 表，`hci::gui::tr`）；语言由流程首个可选步骤 `{"ui":"language","default":"zh"}` 选定（GUI 弹选择小窗；product `defaultLanguage` 为兜底）；产品侧文本（产品名/流程 prompt/message）由产品配置负责
+- **欢迎页布局**：左上产品名大字（26pt 粗体）→ 下方引导文本 → 右下角灰色小字 `Powered by HiBer Common Installer Module`（引导文本紧贴其上方）
 - 页面被 `deleteLater` 清理（勿在页面内持有跨页指针）
 - 未注册的 ui id → 兜底页（"Unknown page"）
 

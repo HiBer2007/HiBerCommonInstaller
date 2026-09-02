@@ -23,6 +23,7 @@ struct TuiOptions {
     std::string productJson = "product.json";
     std::string flow;
     std::string installPath;
+    std::string language;      // --lang code ("en"/"zh")
     bool help = false;
     bool version = false;
 };
@@ -35,6 +36,7 @@ bool parseArgs(int argc, char** argv, TuiOptions& o, std::string& err)
         if (a == "--version" || a == "-v") { o.version = true; continue; }
         if (a == "--tui") continue;
         if (a == "--path" && i + 1 < argc) { o.installPath = argv[++i]; continue; }
+        if (a == "--lang" && i + 1 < argc) { o.language = argv[++i]; continue; }
         if (a == "--product" && i + 1 < argc) { o.productJson = argv[++i]; continue; }
         if (a == "--flow" && i + 1 < argc) { o.flow = argv[++i]; continue; }
         err = "unknown option: " + a;
@@ -70,7 +72,7 @@ int main(int argc, char* argv[])
         std::cout << "HiBer Common Installer Module - TUI shell\n"
                      "Usage:\n"
                      "  hci_tui [--product <file.json>] [--flow install|uninstall|file.json]\n"
-                     "          [--path <dir>]\n"
+                     "          [--path <dir>] [--lang <en|zh>]\n"
                      "Exit codes: 0 success, 1 failure, 2 usage error.\n";
         return 0;
     }
@@ -98,6 +100,8 @@ int main(int argc, char* argv[])
         std::string f = opt.flow;
         if (f.empty() || f == "install") f = product.flows.install;
         else if (f == "uninstall") f = product.flows.uninstall;
+        else if (f == "repair") f = product.flows.repair;
+        else if (f == "upgrade") f = product.flows.upgrade;
         if (f.empty()) {
             std::cerr << "Error: no flow defined (--flow or product flows.install)\n";
             return 2;
@@ -111,6 +115,6 @@ int main(int argc, char* argv[])
     // Mandatory branding banner.
     std::cout << entry::renderBanner(product.productName, product.bannerFont);
 
-    tui::TuiShell shell(product, flowFile, opt.installPath);
+    tui::TuiShell shell(product, flowFile, opt.installPath, opt.language);
     return shell.run();
 }

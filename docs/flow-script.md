@@ -22,6 +22,7 @@
 | `next` | string | 显式跳转：下一跳步骤 id，`"__end"` 提前结束 |
 | `when` | string | Lua 表达式；**false = 跳过本步（非错误）**；空 = 恒执行 |
 | `onFail` | string | 失败策略：`"abort"`（默认，终止运行）/ `"ignore"`（记日志继续） |
+| `buttons` | object | 页脚按钮临时禁用（GUI）：`{"back": false, "next": false, "cancel": false}`；缺失键保持默认（back 另受 product `backEnabled` 与是否有上一步影响） |
 | 其余字段 | — | 进入 `params`（步骤参数，见下表） |
 
 **执行顺序**：when 判定 → （跳过则按 `next` 跳转）→ ui/type 执行 → `next` 跳转。
@@ -31,6 +32,7 @@
 | ui | param | 交互 | 变量写入 |
 |---|---|---|---|
 | `welcome` | — | 欢迎页（产品名 + Powered by banner） | — |
+| `language` | `default`（如 "zh"，缺省取 product `defaultLanguage`/“en”） | 语言选择小窗（GUI；CLI/TUI 直接采纳默认） | `language` |
 | `license` | `source`（文本文件或 `qrc:/...`，GUI 需 ResourceReader） | 阅读 + 勾选接受 | —（拒绝 = 流程失败） |
 | `path` | — | 安装路径输入/选择 | `installDir` |
 | `components` | — | 组件勾选（来自 product.components） | `components.<id>` |
