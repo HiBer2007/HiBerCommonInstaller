@@ -273,6 +273,16 @@ void ExtensionLoader::loadDirectory(const std::string& dir)
     }
 }
 
+std::vector<std::pair<std::string, std::string>> ExtensionLoader::modules() const
+{
+    std::vector<std::pair<std::string, std::string>> out;
+    out.reserve(loaded_.size());
+    for (auto& e : loaded_) {
+        if (e) out.emplace_back(e->id(), e->version());
+    }
+    return out;
+}
+
 bool ExtensionLoader::loadDll(const std::string& dllPath, std::string& err)
 {
 #ifdef _WIN32

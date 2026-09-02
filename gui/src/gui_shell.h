@@ -5,6 +5,7 @@
 
 #include <QDialog>
 #include <QEventLoop>
+#include <QFrame>
 #include <QProgressBar>
 #include <QStackedWidget>
 #include <QTextEdit>
@@ -97,8 +98,11 @@ public:
     // Blocks until the user clicks Next on the given page (or cancels/back).
     // Returns false when cancelled or when back was requested (query
     // backRequested() to distinguish). The page is adopted into the stack.
-    bool blockOnPage(QWidget* page, const QString& nextText);
+    // showHeader=false renders a headerless page (welcome).
+    bool blockOnPage(QWidget* page, const QString& nextText,
+                     bool showHeader = true);
 
+    void setHeaderVisible(bool on);
     void setNextEnabled(bool on);
     void cancelFlow();
     bool cancelled() const { return cancelled_; }
@@ -137,6 +141,7 @@ private:
     std::vector<std::string> extensionArgs_;
 
     QLabel* titleLabel_ = nullptr;
+    QFrame* headerLine_ = nullptr;
     QStackedWidget* stack_ = nullptr;
     QPushButton* backBtn_ = nullptr;
     QPushButton* nextBtn_ = nullptr;
@@ -153,6 +158,7 @@ private:
     bool backVisible_ = false;  // back button shown (product.backEnabled && canGoBack)
     bool backEnabled_ = false;  // back clickable (flow buttons.back != false)
     bool backFlag_ = false;     // back requested by the user on last interaction
+    bool showHeader_ = true;    // current page shows the title header
     std::string lang_;          // active UI language ("en"|"zh")
 
     friend class GuiFlowUi;

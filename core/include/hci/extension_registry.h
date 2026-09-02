@@ -28,16 +28,23 @@ public:
     bool runStep(const std::string& type, const nlohmann::json& params,
                  InstallContext& ctx, std::string& error) const;
 
-    void registerCliArg(const std::string& arg, CliArgHandler handler);
+    // help text surfaces in the shells' --help output (extension metadata).
+    void registerCliArg(const std::string& arg, CliArgHandler handler,
+                        const std::string& help = "");
     bool handleCliArg(const std::string& arg, InstallContext& ctx) const;
     bool hasCliArg(const std::string& arg) const;
     std::vector<std::string> cliArgs() const;
+    std::string cliArgHelp(const std::string& arg) const;
 
     void clear();
 
 private:
+    struct ArgEntry {
+        CliArgHandler handler;
+        std::string help;
+    };
     std::map<std::string, StepHandler> steps_;
-    std::map<std::string, CliArgHandler> args_;
+    std::map<std::string, ArgEntry> args_;
 };
 
 } // namespace hci

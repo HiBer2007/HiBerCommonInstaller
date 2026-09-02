@@ -67,6 +67,7 @@ struct ProductConfig {
     std::string defaultLanguage;     // "en" | "zh" | "" ("" -> "en")
     bool backEnabled = true;         // shell "back" button available by default
     std::string welcomeTitle;        // GUI welcome big title (default productName)
+    std::string poweredBy;           // branding line (default "Powered by HiBer...")
     std::vector<ProductComponent> components;
     std::vector<ShortcutSpec> shortcuts;
     InstallConfSpec installConf;

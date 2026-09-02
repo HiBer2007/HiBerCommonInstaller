@@ -39,6 +39,8 @@ const std::map<std::string, std::string>& zhTable()
          "\u5b89\u88c5\u524d\u5c06\u4f1a\u6e05\u7a7a\u3002\n\n\u7ee7\u7eed\uff1f"},
         // Components page
         {"Select components:", "\u9009\u62e9\u7ec4\u4ef6\uff1a"},
+        {"Choose what to install. Required components cannot be unchecked.",
+         "\u9009\u62e9\u8981\u5b89\u88c5\u7684\u7ec4\u4ef6\u3002\u5fc5\u9009\u7ec4\u4ef6\u65e0\u6cd5\u53d6\u6d88\u52fe\u9009\u3002"},
         // Confirm page
         {"Yes, continue", "\u662f\uff0c\u7ee7\u7eed"},
         // Finish page

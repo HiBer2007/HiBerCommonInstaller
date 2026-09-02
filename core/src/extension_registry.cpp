@@ -21,16 +21,17 @@ bool ExtensionRegistry::runStep(const std::string& type, const nlohmann::json& p
     return it->second(params, ctx, error);
 }
 
-void ExtensionRegistry::registerCliArg(const std::string& arg, CliArgHandler handler)
+void ExtensionRegistry::registerCliArg(const std::string& arg, CliArgHandler handler,
+                                       const std::string& help)
 {
-    args_[arg] = std::move(handler);
+    args_[arg] = {std::move(handler), help};
 }
 
 bool ExtensionRegistry::handleCliArg(const std::string& arg, InstallContext& ctx) const
 {
     auto it = args_.find(arg);
     if (it == args_.end()) return false;
-    return it->second(arg, ctx);
+    return it->second.handler(arg, ctx);
 }
 
 bool ExtensionRegistry::hasCliArg(const std::string& arg) const
@@ -44,6 +45,13 @@ std::vector<std::string> ExtensionRegistry::cliArgs() const
     out.reserve(args_.size());
     for (auto& kv : args_) out.push_back(kv.first);
     return out;
+}
+
+std::string ExtensionRegistry::cliArgHelp(const std::string& arg) const
+{
+    auto it = args_.find(arg);
+    if (it == args_.end()) return "";
+    return it->second.help;
 }
 
 void ExtensionRegistry::clear()

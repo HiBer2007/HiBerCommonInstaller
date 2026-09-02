@@ -123,6 +123,9 @@ public:
     size_t count() const { return loaded_.size(); }
     const std::string& lastError() const { return lastError_; }
 
+    // Loaded modules (id, version) - for help/metadata display.
+    std::vector<std::pair<std::string, std::string>> modules() const;
+
 private:
     bool loadDll(const std::string& dllPath, std::string& err);
     bool loadPackage(const std::string& pkgPath, std::string& err);

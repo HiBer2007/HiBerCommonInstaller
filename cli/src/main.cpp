@@ -257,14 +257,50 @@ int main(int argc, char* argv[])
         return 2;
     }
 
-    if (opt.help) {
-        port::setUtf8Console(true);
-        printUsage(std::cout);
-        return 0;
-    }
     if (opt.version) {
         port::setUtf8Console(true);
         std::cout << "HiBer Common Installer Module v" HCI_VERSION_STRING " (hci_cli)\n";
+        return 0;
+    }
+
+    // Help must never fail: base usage always prints; the extension section
+    // loads best-effort (products without plugins show the base help only).
+    if (opt.help) {
+        port::setUtf8Console(true);
+        printUsage(std::cout);
+        try {
+            std::string pp = absolutize(opt.productJson, port::currentDir());
+            ProductConfig hp = ProductConfig::loadFile(pp);
+            InstallContext hctx;
+            EventBus hbus;
+            ServiceRegistry hsvc;
+            ExtensionRegistry hreg;
+            ExtensionLoader hloader(&hbus, &hsvc, &hctx, &hp, &hreg);
+            hloader.loadStatic();
+            std::string ed = !opt.extensionsDir.empty()
+                ? opt.extensionsDir
+                : port::joinPath(port::exeDir(), "extensions");
+            if (fs::exists(fs::u8path(ed))) hloader.loadDirectory(ed);
+            auto args = hreg.cliArgs();
+            if (!args.empty()) {
+                std::cout << "\nExtension options (provided by plugins):\n";
+                for (auto& a : args) {
+                    std::cout << "  " << a;
+                    std::string h = hreg.cliArgHelp(a);
+                    if (!h.empty()) std::cout << "   " << h;
+                    std::cout << "\n";
+                }
+            }
+            auto mods = hloader.modules();
+            if (!mods.empty()) {
+                std::cout << "\nExtension modules:\n";
+                for (auto& m : mods)
+                    std::cout << "  " << m.first << " v" << m.second << "\n";
+            }
+        } catch (...) {
+            // Base help only - never fail --help because of product issues.
+        }
+        std::cout << "\n";
         return 0;
     }
 

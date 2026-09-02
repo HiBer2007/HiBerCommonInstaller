@@ -84,8 +84,10 @@ QWidget* pageWelcome(const nlohmann::json&, GuiShell& shell, QVariant&)
 
     auto* bottom = new QHBoxLayout();
     bottom->addStretch(1);
-    auto* powered = new QLabel(QStringLiteral(
-        "Powered by HiBer Common Installer Module"), w);
+    auto* powered = new QLabel(QString::fromUtf8(
+        p.poweredBy.empty()
+            ? "Powered by HiBer Common Installer Module"
+            : p.poweredBy.c_str()), w);
     powered->setStyleSheet(QStringLiteral("color: #888; font-size: 11px;"));
     bottom->addWidget(powered);
     l->addLayout(bottom);
@@ -153,6 +155,11 @@ QWidget* pageComponents(const nlohmann::json& params, GuiShell& shell, QVariant&
     auto* l = new QVBoxLayout(w);
     l->addWidget(new QLabel(QString::fromUtf8(
         hci::lang::tr(shell.language(), "Select components:").c_str()), w));
+    auto* help = new QLabel(QString::fromUtf8(hci::lang::tr(shell.language(),
+        "Choose what to install. Required components cannot be unchecked.").c_str()), w);
+    help->setWordWrap(true);
+    help->setStyleSheet(QStringLiteral("color: #777; font-size: 11px;"));
+    l->addWidget(help);
     QVariantList list;
     if (params.contains("components") && params["components"].is_array()) {
         int idx = 0;
@@ -192,6 +199,8 @@ QWidget* pageComponents(const nlohmann::json& params, GuiShell& shell, QVariant&
     }
     l->addStretch(1);
     res = list;
+    // Next must be enabled - the previous page's gating must not leak here.
+    shell.setNextEnabled(true);
     return w;
 }
 

@@ -62,6 +62,8 @@ ProductConfig ProductConfig::loadString(const std::string& jsonText)
     p.defaultLanguage = j.value("defaultLanguage", "");
     p.backEnabled = j.value("backEnabled", true);
     p.welcomeTitle = j.value("welcomeTitle", "");
+    p.poweredBy = j.value("branding", nlohmann::json::object())
+                      .value("poweredBy", "Powered by HiBer Common Installer Module");
 
     if (j.contains("components") && j["components"].is_array()) {
         for (auto& c : j["components"]) p.components.push_back(parseComponent(c));

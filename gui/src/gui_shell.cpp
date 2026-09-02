@@ -22,6 +22,7 @@
 #include <QAbstractAnimation>
 #include <QDir>
 #include <QFile>
+#include <QFrame>
 #include <QGraphicsOpacityEffect>
 #include <QLabel>
 #include <QLineEdit>
@@ -103,6 +104,12 @@ GuiShell::GuiShell(const hci::ProductConfig& product, const std::string& flowFil
     titleLabel_->setStyleSheet(QStringLiteral(
         "font-size: 15px; font-weight: bold; padding: 4px;"));
     root->addWidget(titleLabel_);
+    // Header divider line under the title (hidden together on welcome).
+    headerLine_ = new QFrame(this);
+    headerLine_->setFrameShape(QFrame::HLine);
+    headerLine_->setStyleSheet(QStringLiteral("color: #bbb;"));
+    root->addWidget(headerLine_);
+    setHeaderVisible(false); // welcome renders without the header
 
     stack_ = new QStackedWidget(this);
     root->addWidget(stack_, 1);
@@ -233,13 +240,21 @@ int GuiShell::run()
     return rc;
 }
 
+void GuiShell::setHeaderVisible(bool on)
+{
+    titleLabel_->setVisible(on);
+    if (headerLine_) headerLine_->setVisible(on);
+}
+
 void GuiShell::setVisibleForFlow()
 {
     if (!silent_ && !isVisible()) show();
 }
 
-bool GuiShell::blockOnPage(QWidget* page, const QString& nextText)
+bool GuiShell::blockOnPage(QWidget* page, const QString& nextText,
+                           bool showHeader)
 {
+    showHeader_ = showHeader;
     stack_->addWidget(page);
     stack_->setCurrentWidget(page);
 
@@ -257,6 +272,15 @@ bool GuiShell::blockOnPage(QWidget* page, const QString& nextText)
     anim->start(QAbstractAnimation::DeleteWhenStopped);
 
     nextBtn_->setText(nextText);
+    if (showHeader_) {
+        // Header: "<product> 安装程序" (i18n) + divider.
+        titleLabel_->setText(QString::fromUtf8(product_.productName.c_str()) +
+                             QStringLiteral(" ") +
+                             QString::fromUtf8(hci::lang::tr(lang_, "Installer").c_str()));
+        setHeaderVisible(true);
+    } else {
+        setHeaderVisible(false);
+    }
     backBtn_->setText(QString::fromUtf8(hci::lang::tr(lang_, "Back").c_str()));
     cancelBtn_->setText(QString::fromUtf8(hci::lang::tr(lang_, "Cancel").c_str()));
     backBtn_->setVisible(backVisible_);
@@ -442,7 +466,7 @@ bool GuiFlowUi::onWelcome(const std::string& productName,
     QVariant res;
     QWidget* page = createPage("welcome", nlohmann::json::object(), shell_, res);
     return shell_.blockOnPage(page, QString::fromUtf8(
-        hci::lang::tr(shell_.language(), "Next").c_str()));
+        hci::lang::tr(shell_.language(), "Next").c_str()), false);
 }
 
 bool GuiFlowUi::onLicense(const std::string& text, bool& accepted)
