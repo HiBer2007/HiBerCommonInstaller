@@ -50,6 +50,8 @@ public:
 // Built-in backends.
 std::shared_ptr<IDownloadBackend> makeDirectBackend();
 std::shared_ptr<IDownloadBackend> makeGitHubBackend();
+std::shared_ptr<IDownloadBackend> makePowerShellBackend();
+std::shared_ptr<IDownloadBackend> makeCurlBackend();
 
 // Run a chain of backends (first supporting+successful one wins).
 // 'extra' = additional backends (host/extension supplied) consulted after

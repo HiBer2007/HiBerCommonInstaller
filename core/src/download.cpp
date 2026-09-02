@@ -96,6 +96,97 @@ public:
     }
 };
 
+// ------------------------------------------------------------------
+// PowerShell backend (Invoke-WebRequest - a .NET/SChannel path that works
+// where raw libcurl/OpenSSL handshakes fail; powershell on Windows, pwsh
+// elsewhere).
+// ------------------------------------------------------------------
+class PowerShellBackend : public IDownloadBackend {
+public:
+    const char* name() const override { return "powershell"; }
+    bool supports(const DownloadRequest& req) const override
+    {
+        return !req.url.empty();
+    }
+    bool fetch(DownloadRequest& req, DownloadProgress,
+               std::string& error) override
+    {
+        if (req.dest.empty()) {
+            error = "powershell backend requires dest";
+            return false;
+        }
+        // Single-quote shell escaping: ' -> ''
+        const std::string sq = "'";
+        auto q = [sq](std::string s) {
+            std::string out;
+            for (char c : s) {
+                if (c == '\'') out += "''";
+                else out += c;
+            }
+            return sq + out + sq;
+        };
+        std::string cmd = "Invoke-WebRequest -Uri " + q(req.url) +
+                          " -OutFile " + q(req.dest);
+        hci::exec::ProcessResult r;
+        if (!hci::exec::runProcess(
+                {"powershell", "-NoProfile", "-NonInteractive",
+                 "-ExecutionPolicy", "Bypass", "-Command", cmd},
+                360000, r)) {
+            error = "powershell failed to start";
+            return false;
+        }
+        if (r.exitCode != 0) {
+            error = r.output.empty()
+                ? "Invoke-WebRequest failed (exit " +
+                      std::to_string(r.exitCode) + ")"
+                : r.output.substr(0, r.output.size() < 400
+                                        ? r.output.size() : 400);
+            std::error_code ec;
+            fs::remove(fs::u8path(req.dest), ec);
+            return false;
+        }
+        return true;
+    }
+};
+
+// ------------------------------------------------------------------
+// curl backend (curl.exe, Windows 10+ ships it at C:\Windows\System32).
+// ------------------------------------------------------------------
+class CurlBackend : public IDownloadBackend {
+public:
+    const char* name() const override { return "curl"; }
+    bool supports(const DownloadRequest& req) const override
+    {
+        return !req.url.empty();
+    }
+    bool fetch(DownloadRequest& req, DownloadProgress,
+               std::string& error) override
+    {
+        if (req.dest.empty()) {
+            error = "curl backend requires dest";
+            return false;
+        }
+        hci::exec::ProcessResult r;
+        if (!hci::exec::runProcess(
+                {"curl", "-L", "--fail", "--show-error", "--silent",
+                 "-o", req.dest, req.url},
+                360000, r)) {
+            error = "curl failed to start";
+            return false;
+        }
+        if (r.exitCode != 0) {
+            std::error_code ec;
+            fs::remove(fs::u8path(req.dest), ec);
+            error = r.output.empty()
+                ? "curl failed (exit " + std::to_string(r.exitCode) + ")"
+                : r.output.substr(0, r.output.size() < 400
+                                        ? r.output.size() : 400);
+            return false;
+        }
+        return true;
+    }
+};
+
 std::shared_ptr<IDownloadBackend> makeDirectBackend()
 {
     return std::make_shared<DirectBackend>();
@@ -104,6 +195,16 @@ std::shared_ptr<IDownloadBackend> makeDirectBackend()
 std::shared_ptr<IDownloadBackend> makeGitHubBackend()
 {
     return std::make_shared<GitHubBackend>();
+}
+
+std::shared_ptr<IDownloadBackend> makePowerShellBackend()
+{
+    return std::make_shared<PowerShellBackend>();
+}
+
+std::shared_ptr<IDownloadBackend> makeCurlBackend()
+{
+    return std::make_shared<CurlBackend>();
 }
 
 // ------------------------------------------------------------------
@@ -117,6 +218,8 @@ DownloadResult runChain(const DownloadRequest& req,
     std::vector<std::pair<std::string, std::shared_ptr<IDownloadBackend>>> pool;
     pool.emplace_back("direct", makeDirectBackend());
     pool.emplace_back("github", makeGitHubBackend());
+    pool.emplace_back("powershell", makePowerShellBackend());
+    pool.emplace_back("curl", makeCurlBackend());
     for (auto& b : extra) {
         if (b) pool.emplace_back(b->name(), b);
     }
