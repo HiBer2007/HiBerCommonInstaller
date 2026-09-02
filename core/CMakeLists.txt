@@ -2,6 +2,7 @@
 add_library(hci_core
     src/bus.cpp
     src/context.cpp
+    src/download.cpp
     src/elevation.cpp
     src/entry.cpp
     src/exec.cpp

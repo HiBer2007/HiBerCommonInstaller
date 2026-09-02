@@ -54,10 +54,33 @@ std::string ExtensionRegistry::cliArgHelp(const std::string& arg) const
     return it->second.help;
 }
 
+void ExtensionRegistry::registerDownloadBackend(const std::string& name,
+                                                DownloadBackendFactory factory)
+{
+    downloadBackends_[name] = std::move(factory);
+}
+
+std::vector<std::string> ExtensionRegistry::downloadBackends() const
+{
+    std::vector<std::string> out;
+    out.reserve(downloadBackends_.size());
+    for (auto& kv : downloadBackends_) out.push_back(kv.first);
+    return out;
+}
+
+std::shared_ptr<hci::download::IDownloadBackend>
+ExtensionRegistry::createDownloadBackend(const std::string& name) const
+{
+    auto it = downloadBackends_.find(name);
+    if (it == downloadBackends_.end()) return nullptr;
+    return it->second();
+}
+
 void ExtensionRegistry::clear()
 {
     steps_.clear();
     args_.clear();
+    downloadBackends_.clear();
 }
 
 } // namespace hci

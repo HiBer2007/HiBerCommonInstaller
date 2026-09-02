@@ -605,23 +605,41 @@ bool FlowRunner::handleExecStep(FlowStep& step, std::string& error)
     }
 
     if (step.type == "download") {
-        std::string dest = resolvePath(v.interpolate(step.params.value("dest", "")));
-        std::string url;
-        if (step.params.contains("url")) {
-            url = v.interpolate(step.params["url"].get<std::string>());
-        } else if (step.params.contains("asset")) {
-            std::string repo = step.params["asset"].get<std::string>();
-            std::string variant = step.params.value("variant", "");
-            if (variant.empty()) { error = "download(asset): missing variant"; return false; }
-            bool allowExe = step.params.value("ext", "") == "exe";
-            url = fetchGitHubAssetUrl(repo, variant, allowExe, &error);
-            if (url.empty()) return false;
+        hci::download::DownloadRequest dreq;
+        dreq.dest = v.interpolate(step.params.value("dest", ""));
+        dreq.variant = v.interpolate(step.params.value("variant", ""));
+        dreq.allowExe = step.params.value("ext", "") == "exe";
+        dreq.package = step.params.value("package", "");
+        if (step.params.contains("url"))
+            dreq.url = v.interpolate(step.params["url"].get<std::string>());
+        else if (step.params.contains("asset"))
+            dreq.asset = step.params["asset"].get<std::string>();
+
+        std::vector<std::string> chain;
+        if (step.params.contains("chain") && step.params["chain"].is_array()) {
+            for (auto& c : step.params["chain"])
+                chain.push_back(c.get<std::string>());
+        } else if (step.params.contains("backend")) {
+            chain.push_back(step.params["backend"].get<std::string>());
         } else {
-            error = "download: missing url or asset";
+            chain = {"github", "direct"};
+        }
+        if (dreq.url.empty() && dreq.asset.empty() && dreq.package.empty()) {
+            error = "download: missing url/asset/package";
             return false;
         }
-        if (dest.empty()) { error = "download: missing dest"; return false; }
-        return exec::downloadFile(url, dest, nullptr, &error);
+        // Extra (extension) backends come from the injected registry.
+        std::vector<std::shared_ptr<hci::download::IDownloadBackend>> extra;
+        if (registry_) {
+            for (auto& name : chain) {
+                auto b = registry_->createDownloadBackend(name);
+                if (b) extra.push_back(b);
+            }
+        }
+        hci::download::DownloadResult dr =
+            hci::download::runChain(dreq, chain, extra, nullptr);
+        if (!dr.ok) { error = dr.error; return false; }
+        return true;
     }
 
     if (step.type == "run") {

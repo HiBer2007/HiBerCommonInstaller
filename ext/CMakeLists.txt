@@ -9,3 +9,6 @@ target_link_libraries(hci_ext PUBLIC hci_core)
 
 # Generic Git strategy extension (reusable by host products).
 add_subdirectory(git)
+# Download/install backends: winget (Windows), apt (POSIX).
+add_subdirectory(winget)
+add_subdirectory(apt)

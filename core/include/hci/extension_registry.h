@@ -2,10 +2,12 @@
 
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "hci/context.h"
+#include "hci/download.h"
 
 namespace hci {
 
@@ -36,7 +38,18 @@ public:
     std::vector<std::string> cliArgs() const;
     std::string cliArgHelp(const std::string& arg) const;
 
-    void clear();
+    // Download backend factories (winget/apt/custom): extensions register their
+// backend here during init(); the flow download step consults the injected
+// registry the same way as step types/cli args (cross-DLL safe).
+using DownloadBackendFactory =
+    std::function<std::shared_ptr<hci::download::IDownloadBackend>()>;
+void registerDownloadBackend(const std::string& name,
+                             DownloadBackendFactory factory);
+std::vector<std::string> downloadBackends() const;
+std::shared_ptr<hci::download::IDownloadBackend>
+    createDownloadBackend(const std::string& name) const;
+
+void clear();
 
 private:
     struct ArgEntry {
@@ -45,6 +58,7 @@ private:
     };
     std::map<std::string, StepHandler> steps_;
     std::map<std::string, ArgEntry> args_;
+    std::map<std::string, DownloadBackendFactory> downloadBackends_;
 };
 
 } // namespace hci
