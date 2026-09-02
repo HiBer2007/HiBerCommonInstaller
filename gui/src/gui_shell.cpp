@@ -14,8 +14,6 @@
 #include "resource_utils.h"
 #include "hci/lang.h"
 
-#include <progress_card.h>
-
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -150,12 +148,16 @@ QWidget* GuiShell::buildProgressPage()
     progressPage_ = new QWidget(this);
     auto* l = new QVBoxLayout(progressPage_);
 
-    progressCard_ = new HiBerGUI::ProgressCard(progressPage_);
-    l->addWidget(progressCard_);
-
+    // Fixed layout: small step caption on the left, percent on the right,
+    // progress bar pinned right under the header divider, log fills below.
+    auto* row = new QHBoxLayout();
     progressStepLabel_ = new QLabel(QString::fromUtf8(
         hci::lang::tr(lang_, "Preparing...").c_str()), progressPage_);
-    l->addWidget(progressStepLabel_);
+    row->addWidget(progressStepLabel_, 1);
+    progressPercentLabel_ = new QLabel(QStringLiteral("0%"), progressPage_);
+    progressPercentLabel_->setStyleSheet(QStringLiteral("color: #555;"));
+    row->addWidget(progressPercentLabel_);
+    l->addLayout(row);
 
     progressBar_ = new QProgressBar(progressPage_);
     progressBar_->setRange(0, 100);
@@ -163,10 +165,8 @@ QWidget* GuiShell::buildProgressPage()
 
     logView_ = new QTextEdit(progressPage_);
     logView_->setReadOnly(true);
-    logView_->setMaximumHeight(200);
-    l->addWidget(logView_);
+    l->addWidget(logView_, 1);
 
-    l->addStretch(1);
     stack_->addWidget(progressPage_);
     return progressPage_;
 }
@@ -257,6 +257,12 @@ bool GuiShell::blockOnPage(QWidget* page, const QString& nextText,
     showHeader_ = showHeader;
     stack_->addWidget(page);
     stack_->setCurrentWidget(page);
+
+    // Size adapts to the page content on every step (computed, not fixed).
+    {
+        QSize hint = page->sizeHint();
+        resize(qMax(hint.width(), 640), qMax(hint.height(), 460));
+    }
 
     // Page transition fade-in (same effect the main program wizard uses:
     // opacity 0 -> 1 over 160ms, the effect is removed when finished).
@@ -353,22 +359,19 @@ void GuiShell::setStatus(const QString& text)
 
 void GuiShell::showProgress(const QString& stepLabel, int percent)
 {
-    if (progressCard_) {
-        if (!progressCard_->isActive())
-            progressCard_->showCard(QString::fromUtf8(
-                hci::lang::tr(lang_, "Installing...").c_str()), false);
-        progressCard_->setProgress(percent, stepLabel);
-    }
     if (progressStepLabel_)
         progressStepLabel_->setText(stepLabel.isEmpty()
             ? QString::fromUtf8(hci::lang::tr(lang_, "Working...").c_str())
             : stepLabel);
+    if (progressPercentLabel_ && percent >= 0)
+        progressPercentLabel_->setText(QString::number(percent) + QStringLiteral("%"));
     if (progressBar_ && percent >= 0) progressBar_->setValue(percent);
 }
 
 void GuiShell::showProgressCard(const QString& title, bool cancelable)
 {
-    if (progressCard_) progressCard_->showCard(title, cancelable);
+    (void)title;
+    (void)cancelable; // legacy: replaced by the pinned fixed progress row
 }
 
 // ------------------------------------------------------------------
@@ -593,8 +596,25 @@ void GuiFlowUi::onMessage(const std::string& text, bool isError)
     }
 }
 
+bool GuiFlowUi::onGit(bool systemAvailable, std::string& mode,
+                      const std::string& def)
+{
+    if (autopilot_) { mode = def; return true; }
+    nlohmann::json params;
+    params["systemAvailable"] = systemAvailable;
+    params["systemPath"] = shell_.context().vars().get("gitSystemPath");
+    params["default"] = def;
+    QVariant res;
+    QWidget* page = createPage("git", params, shell_, res);
+    if (!shell_.blockOnPage(page, QString::fromUtf8(
+            hci::lang::tr(shell_.language(), "Next").c_str()))) return false;
+    mode = res.toString().toUtf8().toStdString();
+    return true;
+}
+
 void GuiFlowUi::onFinish(bool success, const std::string& message,
-                         const std::string& launchExe)
+                         const std::string& launchExe,
+                         const std::vector<std::string>& launchOptions)
 {
     if (autopilot_) {
         if (success && !launchExe.empty()) {
@@ -607,6 +627,9 @@ void GuiFlowUi::onFinish(bool success, const std::string& message,
     params["success"] = success;
     params["message"] = message;
     params["launch"] = launchExe;
+    if (!launchOptions.empty()) {
+        for (auto& o : launchOptions) params["launchOptions"].push_back(o);
+    }
     QVariant res;
     QWidget* page = createPage("finish", params, shell_, res);
     // finish is the terminal step: no "back" (nothing to return to).
@@ -615,7 +638,20 @@ void GuiFlowUi::onFinish(bool success, const std::string& message,
     if (!shell_.blockOnPage(page, QString::fromUtf8(
             hci::lang::tr(shell_.language(), "Finish").c_str()))) return;
 
-    if (success && res.toBool() && !launchExe.empty()) {
+    if (!success) return;
+    if (!launchOptions.empty()) {
+        // Launch the user-selected options (each "name=absPath").
+        QVariantList sel = res.toList();
+        for (auto& s : sel) {
+            std::string item = s.toString().toUtf8().toStdString();
+            size_t eq = item.find('=');
+            std::string path = eq == std::string::npos ? item : item.substr(eq + 1);
+            if (!path.empty()) {
+                exec::ProcessResult r;
+                exec::runProcess({path}, 0, r);
+            }
+        }
+    } else if (res.toBool() && !launchExe.empty()) {
         exec::ProcessResult r;
         exec::runProcess({launchExe}, 0, r);
     }

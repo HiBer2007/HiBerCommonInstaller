@@ -228,13 +228,20 @@ public:
         }
     }
 
-    void onFinish(bool success, const std::string& message, const std::string& launch) override
+    void onFinish(bool success, const std::string& message, const std::string& launch,
+                  const std::vector<std::string>& launchOptions) override
     {
         if (jsonOut_) {
             jsonEvent({{"category", "hci"}, {"event", "finish"},
-                       {"success", success}, {"message", message}, {"launch", launch}});
+                       {"success", success}, {"message", message},
+                       {"launch", launch},
+                       {"launchOptions", launchOptions}});
         } else {
             out_ << (success ? "[OK] " : "[FAIL] ") << message << "\n";
+            for (auto& o : launchOptions) {
+                size_t eq = o.find('=');
+                out_ << "Launch option: " << (eq == std::string::npos ? o : o.substr(0, eq)) << "\n";
+            }
             if (success && !launch.empty()) out_ << "Launch: " << launch << "\n";
         }
     }

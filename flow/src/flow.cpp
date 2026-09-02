@@ -201,6 +201,18 @@ int FlowRunner::run(FlowSpec& flow)
         if (ui_) ui_->onStepParam(step.params, !history_.empty());
         history_.push_back(i);
 
+        // Step logging (visible on terminal/console for every shell).
+        Log::Info(fmt("step '{}' ({}) starting", step.id,
+                      step.ui.empty() ? step.type : std::string("ui:") + step.ui));
+        // Overall progress computed by the controller: completed steps share
+        // 100%; executors additionally report intra-step detail via onProgress.
+        if (ui_ && step.ui.empty()) {
+            int overall = static_cast<int>(
+                static_cast<long long>(history_.size() - 1) * 100 /
+                std::max<size_t>(1, flow.steps.size()));
+            ui_->onProgress(step.id, overall, "");
+        }
+
         std::string error;
         if (!runStep(flow, step, i, error)) {
             if (ui_ && ui_->backRequested() && history_.size() >= 2) {
@@ -220,6 +232,7 @@ int FlowRunner::run(FlowSpec& flow)
             return 1;
         }
         if (bus_) bus_->publish("hci/step", {{"id", step.id}, {"state", "done"}});
+        Log::Info(fmt("step '{}' done", step.id));
         // Advance: runStep either left i at a jump target-1 (next/id) or
         // untouched (sequential step) - increment reaches the right step.
         ++i;
@@ -356,6 +369,37 @@ bool FlowRunner::handleUiStep(FlowStep& step, std::string& error)
         std::string p = ctx_.vars().get("installDir");
         if (!ui_->onPath(p, p)) { error = "cancelled by user"; return false; }
         ctx_.vars().set("installDir", p);
+        // Write-permission probe: no access -> ask for elevation so the
+        // install cannot fail half-way (elevated relaunch re-runs the flow).
+        std::string werr;
+        if (!p.empty() && !hci::exec::checkDirWritable(p, &werr)) {
+            Log::Warn("install dir not writable: " + werr);
+            std::string reason = "The target directory needs administrator rights:\n" + p;
+            if (ui_ && ui_->onElevate(reason, true))
+                return true; // relaunch issued; this process exits
+            // declined: continue anyway (may fail later, per mode)
+        } else {
+            Log::Info("install dir writable: " + p);
+        }
+        return true;
+    }
+    if (step.ui == "git") {
+        // Git strategy page: auto-detect system git, let the user choose
+        // bundled vs system; decision lands in vars.gitMode (and the
+        // detection result in vars.gitSystemAvailable).
+        std::string sysPath;
+        bool available = hci::exec::findSystemGit(&sysPath);
+        ctx_.vars().setBool("gitSystemAvailable", available);
+        if (!sysPath.empty()) ctx_.vars().set("gitSystemPath", sysPath);
+        Log::Info(std::string("system git ") + (available ? "found: " + sysPath : "not found"));
+        std::string mode;
+        std::string def = step.params.value("default", "");
+        if (def.empty()) def = available ? "system" : "bundled";
+        if (!ui_->onGit(available, mode, def)) { error = "cancelled by user"; return false; }
+        if (mode.empty()) mode = def;
+        ctx_.vars().set("gitMode", mode);
+        ctx_.vars().setBool("gitUseSystem", mode == "system");
+        ctx_.vars().setBool("gitDownload", mode == "bundled");
         return true;
     }
     if (step.ui == "components") {
@@ -405,8 +449,29 @@ bool FlowRunner::handleUiStep(FlowStep& step, std::string& error)
         ctx_.vars().setBool("launchNow", step.params.value("launchDefault", true));
         if (ui_) {
             std::string launch = step.params.value("launch", "");
+            std::vector<std::string> opts;
+            if (step.params.contains("launchOptions") &&
+                step.params["launchOptions"].is_array()) {
+                for (auto& o : step.params["launchOptions"]) {
+                    std::string item = o.is_string()
+                        ? o.get<std::string>()
+                        : o.value("path", "");
+                    std::string name = o.value("name", item);
+                    item = ctx_.vars().interpolate(item);
+                    if (!item.empty()) {
+                        std::string abs = item;
+                        if (abs.size() < 2 || (abs[1] != ':' && abs[0] != '/')) {
+                            // forward slash preferred in JSON; use installDir base
+                            std::string base = ctx_.vars().get("installDir");
+                            if (!base.empty()) abs = port::joinPath(base, abs);
+                        }
+                        opts.push_back(name + "=" + abs);
+                    }
+                }
+            }
             ui_->onFinish(true, step.params.value("message", "installation complete"),
-                          launch.empty() ? "" : port::joinPath(ctx_.vars().get("installDir"), launch));
+                          launch.empty() ? "" : port::joinPath(ctx_.vars().get("installDir"), launch),
+                          opts);
         }
         return true;
     }
@@ -641,7 +706,8 @@ public:
     { Log::Info(fmt("[flow] {} {}%", step, percent)); }
     void onMessage(const std::string& text, bool isError) override
     { if (isError) Log::Error(text); else Log::Info(text); }
-    void onFinish(bool success, const std::string& message, const std::string&) override
+    void onFinish(bool success, const std::string& message, const std::string&,
+                  const std::vector<std::string>&) override
     { Log::Info(fmt("[flow] finish success={} {}", success ? "yes" : "no", message)); }
 };
 } // namespace

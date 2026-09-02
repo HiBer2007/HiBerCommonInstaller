@@ -71,7 +71,18 @@ public:
                             const std::string& detail) = 0;
     virtual void onMessage(const std::string& text, bool isError) = 0;
     virtual void onFinish(bool success, const std::string& message,
-                          const std::string& launchExe = "") = 0;
+                          const std::string& launchExe = "",
+                          const std::vector<std::string>& launchOptions = {}) = 0;
+
+    // Git strategy selection ("git" ui step): 'systemAvailable' is the
+    // auto-detection result; 'mode' in ("", "system", "bundled", "auto")
+    // with 'def' as the suggested default. Returns false = user cancelled.
+    virtual bool onGit(bool systemAvailable, std::string& mode,
+                       const std::string& def)
+    {
+        mode = def;
+        return true;
+    }
 
     // Language selection (optional first step, "language" ui id). Default
     // implementation accepts the prescribed default; shells may show a picker.

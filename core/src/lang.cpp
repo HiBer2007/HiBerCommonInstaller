@@ -37,7 +37,14 @@ const std::map<std::string, std::string>& zhTable()
          "It will be cleared before installation.\n\nContinue?",
          "\u76ee\u6807\u76ee\u5f55\u5df2\u5305\u542b\u6587\u4ef6\u3002\n\n"
          "\u5b89\u88c5\u524d\u5c06\u4f1a\u6e05\u7a7a\u3002\n\n\u7ee7\u7eed\uff1f"},
-        // Components page
+        // Git strategy page
+        {"Choose the Git strategy:", "\u9009\u62e9 Git \u65b9\u6848\uff1a"},
+        {"System Git found: ", "\u68c0\u6d4b\u5230\u7cfb\u7edf Git\uff1a"},
+        {"Git was not found on this system.",
+         "\u672a\u68c0\u6d4b\u5230\u7cfb\u7edf Git\u3002"},
+        {"Use system Git", "\u4f7f\u7528\u7cfb\u7edf Git"},
+        {"Use bundled Git", "\u4f7f\u7528\u5185\u7f6e Git"},
+        // Git strategy page
         {"Select components:", "\u9009\u62e9\u7ec4\u4ef6\uff1a"},
         {"Choose what to install. Required components cannot be unchecked.",
          "\u9009\u62e9\u8981\u5b89\u88c5\u7684\u7ec4\u4ef6\u3002\u5fc5\u9009\u7ec4\u4ef6\u65e0\u6cd5\u53d6\u6d88\u52fe\u9009\u3002"},

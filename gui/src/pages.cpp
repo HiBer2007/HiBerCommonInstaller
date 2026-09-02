@@ -267,6 +267,47 @@ QWidget* pageInput(const nlohmann::json& params, GuiShell& shell, QVariant& res)
     return w;
 }
 
+QWidget* pageGit(const nlohmann::json& params, GuiShell& shell, QVariant& res)
+{
+    auto* w = new QWidget(&shell);
+    auto* l = new QVBoxLayout(w);
+    l->addWidget(new QLabel(QString::fromUtf8(
+        hci::lang::tr(shell.language(), "Choose the Git strategy:").c_str()), w));
+
+    bool sysAvail = params.value("systemAvailable", false);
+    std::string sysPath = params.value("systemPath", "");
+    std::string infoText = sysAvail
+        ? hci::lang::tr(shell.language(), "System Git found: ") + sysPath
+        : hci::lang::tr(shell.language(), "Git was not found on this system.");
+    auto* info = new QLabel(QString::fromUtf8(infoText.c_str()), w);
+    info->setWordWrap(true);
+    info->setStyleSheet(QStringLiteral("color: #5a7; font-size: 12px;"));
+    l->addWidget(info);
+
+    std::string def = params.value("default", "system");
+    auto* rbSys = new QRadioButton(QString::fromUtf8(
+        hci::lang::tr(shell.language(), "Use system Git").c_str()), w);
+    auto* rbBun = new QRadioButton(QString::fromUtf8(
+        hci::lang::tr(shell.language(), "Use bundled Git").c_str()), w);
+    rbSys->setEnabled(sysAvail);
+    if (def == "bundled") {
+        rbBun->setChecked(true);
+    } else {
+        rbSys->setChecked(true);
+    }
+    l->addWidget(rbSys);
+    l->addWidget(rbBun);
+    QObject::connect(rbSys, &QRadioButton::toggled, &shell, [&res](bool on) {
+        if (on) res = QStringLiteral("system");
+    });
+    QObject::connect(rbBun, &QRadioButton::toggled, &shell, [&res](bool on) {
+        if (on) res = QStringLiteral("bundled");
+    });
+    res = QString::fromUtf8(def.c_str());
+    l->addStretch(1);
+    return w;
+}
+
 QWidget* pageFinish(const nlohmann::json& params, GuiShell& shell, QVariant& res)
 {
     auto* w = new QWidget(&shell);
@@ -278,17 +319,52 @@ QWidget* pageFinish(const nlohmann::json& params, GuiShell& shell, QVariant& res
         ? QStringLiteral("font-size: 16px; font-weight: bold; color: green;")
         : QStringLiteral("font-size: 16px; font-weight: bold; color: red;"));
     l->addWidget(lbl);
-    std::string launch = params.value("launch", "");
-    bool hasLaunch = !launch.empty() && success;
-    res = false;
-    if (hasLaunch) {
-        auto* launch = new QCheckBox(QString::fromUtf8(
-            hci::lang::tr(shell.language(), "Launch now").c_str()), w);
-        launch->setChecked(true);
-        l->addWidget(launch);
-        QObject::connect(launch, &QCheckBox::toggled, &shell, [&res](bool on) {
-            res = on;
-        });
+
+    // Multiple launch options: each entry is "name=absPath" (flow resolves
+    // templates); the user picks which to start. res = QVariantList of
+    // selected "name=path" strings. Legacy single launch stays a bool.
+    std::vector<std::string> options;
+    if (params.contains("launchOptions") && params["launchOptions"].is_array()) {
+        for (auto& o : params["launchOptions"])
+            options.push_back(o.get<std::string>());
+    }
+    if (success && !options.empty()) {
+        QVariantList sel;
+        for (auto& o : options) {
+            std::string name = o;
+            size_t eq = o.find('=');
+            if (eq != std::string::npos) name = o.substr(0, eq);
+            auto* cb = new QCheckBox(
+                QString::fromUtf8((hci::lang::tr(shell.language(), "Launch now") +
+                                   " " + name).c_str()), w);
+            cb->setChecked(true);
+            sel.append(QString::fromUtf8(o.c_str()));
+            QObject::connect(cb, &QCheckBox::toggled, &shell, [&res, o](bool on) {
+                QVariantList l2 = res.toList();
+                QByteArray item = QString::fromUtf8(o.c_str()).toUtf8();
+                int idx = -1;
+                for (int k = 0; k < l2.size(); ++k)
+                    if (l2[k].toByteArray() == item) { idx = k; break; }
+                if (on && idx < 0) l2.append(QString::fromUtf8(o.c_str()));
+                if (!on && idx >= 0) l2.removeAt(idx);
+                res = l2;
+            });
+            l->addWidget(cb);
+        }
+        res = sel;
+    } else {
+        std::string launch = params.value("launch", "");
+        bool hasLaunch = !launch.empty() && success;
+        res = false;
+        if (hasLaunch) {
+            auto* launch = new QCheckBox(QString::fromUtf8(
+                hci::lang::tr(shell.language(), "Launch now").c_str()), w);
+            launch->setChecked(true);
+            l->addWidget(launch);
+            QObject::connect(launch, &QCheckBox::toggled, &shell, [&res](bool on) {
+                res = on;
+            });
+        }
     }
     l->addStretch(1);
     return w;
@@ -313,6 +389,7 @@ struct BuiltinPageRegistrar {
         registerPage("license", pageLicense);
         registerPage("path", pagePath);
         registerPage("components", pageComponents);
+        registerPage("git", pageGit);
         registerPage("option", pageOption);
         registerPage("confirm", pageConfirm);
         registerPage("input", pageInput);

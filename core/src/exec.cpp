@@ -464,5 +464,58 @@ bool registryDeleteKey(const std::string& key)
 #endif
 }
 
+// ------------------------------------------------------------------
+bool findSystemGit(std::string* path)
+{
+    ProcessResult r;
+    if (runProcess({"git", "--version"}, 8000, r) && r.exitCode == 0) {
+        if (path) *path = "git";
+        return true;
+    }
+    // Common install locations (Git for Windows / scoop / MSYS).
+    std::vector<std::string> candidates;
+    std::string pf = port::getEnv("ProgramFiles");
+    std::string pf86 = port::getEnv("ProgramFiles(x86)");
+    std::string la = port::getEnv("LocalAppData");
+    if (!pf.empty()) candidates.push_back(pf + "\\Git\\bin\\git.exe");
+    if (!pf86.empty()) candidates.push_back(pf86 + "\\Git\\bin\\git.exe");
+    if (!la.empty()) candidates.push_back(la + "\\Programs\\Git\\bin\\git.exe");
+    for (const auto& c : candidates) {
+        std::error_code ec;
+        if (fs::exists(fs::u8path(c), ec)) {
+            ProcessResult vr;
+            if (runProcess({c, "--version"}, 8000, vr) && vr.exitCode == 0) {
+                if (path) *path = c;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool checkDirWritable(const std::string& dir, std::string* error)
+{
+    std::error_code ec;
+    fs::path p = fs::u8path(dir);
+    if (!fs::exists(p, ec)) {
+        // Create the full chain to test.
+        if (!fs::create_directories(p, ec)) {
+            if (error) *error = "cannot create directory: " + dir;
+            return false;
+        }
+    }
+    fs::path probe = p / ".hci_write_probe";
+    {
+        std::ofstream f(probe, std::ios::binary | std::ios::trunc);
+        if (!f) {
+            if (error) *error = "no write permission for: " + dir;
+            return false;
+        }
+        f << "probe";
+    }
+    fs::remove(probe, ec);
+    return true;
+}
+
 } // namespace exec
 } // namespace hci

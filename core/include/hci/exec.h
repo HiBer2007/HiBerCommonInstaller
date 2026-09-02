@@ -45,6 +45,23 @@ bool downloadFile(const std::string& url, const std::string& destPath,
                   DownloadProgress progress = nullptr, std::string* error = nullptr);
 
 // ------------------------------------------------------------------
+// Git helper (generic; used by the git extension and flows)
+// ------------------------------------------------------------------
+// Locates a usable system git: PATH "git" first, then common install
+// paths (ProgramFiles / ProgramFiles(x86) / LocalAppData). Each candidate
+// is verified with `git --version`. Returns true and fills 'path' ("git"
+// for the PATH hit, absolute path otherwise).
+bool findSystemGit(std::string* path = nullptr);
+
+// ------------------------------------------------------------------
+// Write permission probe
+// ------------------------------------------------------------------
+// True when the directory exists and a probe file can be created+removed
+// (or the directory itself can be created). Used before install to
+// detect "needs elevation" situations.
+bool checkDirWritable(const std::string& dir, std::string* error = nullptr);
+
+// ------------------------------------------------------------------
 // Text template
 // ------------------------------------------------------------------
 // Render {name} placeholders from vars.

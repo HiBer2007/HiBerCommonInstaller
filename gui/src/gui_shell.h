@@ -15,10 +15,6 @@
 #include "hci/flow.h"
 #include "hci/product.h"
 
-namespace HiBerGUI {
-class ProgressCard;
-}
-
 namespace hci {
 // Registers the "qrc" deploy source kind (implemented in qrc_source.cpp).
 bool registerQtSources();
@@ -67,11 +63,14 @@ public:
     bool onConfirm(const std::string& prompt, bool& yes) override;
     bool onInput(const std::string& prompt, std::string& value,
                  bool required) override;
+    bool onGit(bool systemAvailable, std::string& mode,
+               const std::string& def) override;
     void onProgress(const std::string& step, int percent,
                     const std::string& detail) override;
     void onMessage(const std::string& text, bool isError) override;
     void onFinish(bool success, const std::string& message,
-                  const std::string& launchExe) override;
+                  const std::string& launchExe,
+                  const std::vector<std::string>& launchOptions) override;
 
 private:
     GuiShell& shell_;
@@ -149,9 +148,9 @@ private:
     QLabel* statusLabel_ = nullptr;
     QWidget* progressPage_ = nullptr;
     QLabel* progressStepLabel_ = nullptr;
+    QLabel* progressPercentLabel_ = nullptr;
     QProgressBar* progressBar_ = nullptr;
     QTextEdit* logView_ = nullptr;
-    HiBerGUI::ProgressCard* progressCard_ = nullptr;
     std::unique_ptr<QEventLoop> activeLoop_;
     bool gateNext_ = false;
     bool nextForced_ = false;   // flow forced next disabled (buttons.next=false)

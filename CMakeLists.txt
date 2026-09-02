@@ -31,6 +31,12 @@ option(HCI_BUILD_TUI   "Build hci_tui_shell (C++ ANSI)"           OFF)
 option(HCI_BUILD_EXAMPLES "Build examples (demo product)"         ON)
 option(HCI_CORE_SHARED "Build hci_core as shared library"         OFF)
 
+# Application icon embedded into the shell EXEs (VERSIONINFO ICON block).
+# Default: the bundled installer.ico; hosts may override via
+# -DHCI_ICON_PATH=<path-to-ico>.
+set(HCI_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/resources/installer.ico"
+    CACHE FILEPATH "Icon (.ico) embedded into the shell executables")
+
 # ------------------------------------------------------------------
 # Dependencies (vcpkg manifest mode)
 # ------------------------------------------------------------------
@@ -101,6 +107,11 @@ function(hci_add_version_info target desc product)
     string(APPEND _hci_content "        VALUE \"Translation\", 0x0409, 1200\n")
     string(APPEND _hci_content "    END\n")
     string(APPEND _hci_content "END\n")
+    # Optional embedded icon (HCI_ICON_PATH; rc paths use forward slashes).
+    if(EXISTS "${HCI_ICON_PATH}")
+        string(REPLACE "\\" "/" _hci_icon "${HCI_ICON_PATH}")
+        string(APPEND _hci_content "\nIDI_ICON1 ICON \"${_hci_icon}\"\n")
+    endif()
     set(_hci_utf8bom "")
     string(ASCII 239 187 191 _hci_utf8bom)
     file(WRITE "${_hci_vr}" "${_hci_utf8bom}${_hci_content}")

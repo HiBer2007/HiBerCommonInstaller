@@ -88,7 +88,8 @@ public:
                     const std::string& detail) override;
     void onMessage(const std::string& text, bool isError) override;
     void onFinish(bool success, const std::string& message,
-                  const std::string& launchExe) override;
+                  const std::string& launchExe,
+                  const std::vector<std::string>& launchOptions) override;
 
 private:
     TuiShell& shell_;

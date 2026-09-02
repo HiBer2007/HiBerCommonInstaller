@@ -411,11 +411,16 @@ void TuiFlowUi::onMessage(const std::string& text, bool isError)
 }
 
 void TuiFlowUi::onFinish(bool success, const std::string& message,
-                         const std::string& launchExe)
+                         const std::string& launchExe,
+                         const std::vector<std::string>& launchOptions)
 {
     shell_.print("");
     if (success) {
         shell_.print(ansi("32;1", "[OK] " + message));
+        for (auto& o : launchOptions) {
+            size_t eq = o.find('=');
+            shell_.print("Launch option: " + (eq == std::string::npos ? o : o.substr(0, eq)));
+        }
         if (!launchExe.empty()) shell_.print("Launch: " + launchExe);
     } else {
         shell_.print(ansi("31;1", "[FAIL] " + message));
