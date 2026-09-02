@@ -3,6 +3,7 @@
 #include "hci/download.h"
 
 #include "hci/exec.h"
+#include "hci/log.h"
 
 #include <cpr/cpr.h>
 #include <nlohmann/json.hpp>
@@ -29,6 +30,7 @@ public:
     bool fetch(DownloadRequest& req, DownloadProgress progress,
                std::string& error) override
     {
+        Log::Info(fmt("download backend 'direct': url={}", req.url));
         return exec::downloadFile(req.url, req.dest, progress, &error);
     }
 };
@@ -46,6 +48,8 @@ public:
     bool fetch(DownloadRequest& req, DownloadProgress progress,
                std::string& error) override
     {
+        Log::Info(fmt("download backend 'github': repo={} variant={} exe={}",
+                      req.asset, req.variant, req.allowExe ? "yes" : "no"));
         std::string url;
         try {
             cpr::Response r = cpr::Get(
@@ -115,6 +119,8 @@ public:
             error = "powershell backend requires dest";
             return false;
         }
+        Log::Info(fmt("download backend 'powershell': url={} -> {}", req.url,
+                      req.dest));
         // Single-quote shell escaping: ' -> ''
         const std::string sq = "'";
         auto q = [sq](std::string s) {
@@ -166,6 +172,8 @@ public:
             error = "curl backend requires dest";
             return false;
         }
+        Log::Info(fmt("download backend 'curl': url={} -> {}", req.url,
+                      req.dest));
         hci::exec::ProcessResult r;
         if (!hci::exec::runProcess(
                 {"curl", "-L", "--fail", "--show-error", "--silent",
@@ -215,6 +223,16 @@ DownloadResult runChain(const DownloadRequest& req,
                         const std::vector<std::shared_ptr<IDownloadBackend>>& extra,
                         DownloadProgress progress)
 {
+    std::string chainDesc;
+    for (size_t i = 0; i < chain.size(); ++i) {
+        if (i) chainDesc += ",";
+        chainDesc += chain[i];
+    }
+    Log::Info(fmt("download chain init: [{}{}], url={} asset={} package={}",
+                  chainDesc,
+                  extra.empty() ? "" : " +extension", req.url, req.asset,
+                  req.package));
+
     std::vector<std::pair<std::string, std::shared_ptr<IDownloadBackend>>> pool;
     pool.emplace_back("direct", makeDirectBackend());
     pool.emplace_back("github", makeGitHubBackend());

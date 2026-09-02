@@ -1,4 +1,5 @@
 #include "hci/log.h"
+#include "hci/port.h"
 
 #include <cstdio>
 #include <cstring>
@@ -24,16 +25,45 @@ const char* levelTag(LogLevel lv)
     }
     return "?";
 }
+
+// ANSI color per level. Used ONLY when an interactive console is attached
+// (hasConsole) - redirected/pipe output stays plain so colors never leak
+// into files (and cannot be "lost" by a non-TTY stdout).
+const char* levelColor(LogLevel lv)
+{
+    switch (lv) {
+    case LogLevel::Trace: return ";90";  // bright black
+    case LogLevel::Debug: return ";36";  // cyan
+    case LogLevel::Info:  return "";     // default
+    case LogLevel::Warn:  return ";33";  // yellow
+    case LogLevel::Error: return ";31";  // red
+    }
+    return "";
+}
+
+bool consoleColored = false; // set once per process (terminal check)
 } // namespace
 
 // ------------------------------------------------------------------
-ConsoleSink::ConsoleSink(LogLevel minLevel) : minLevel_(minLevel) {}
+ConsoleSink::ConsoleSink(LogLevel minLevel) : minLevel_(minLevel)
+{
+    // The console is a shared resource: detect the terminal once so every
+    // later write either uses ANSI colors (interactive console) or plain
+    // text (redirect/pipe). VT processing was enabled by the shell entry
+    // (port::setUtf8Console) before any sink was attached.
+    consoleColored = port::hasConsole();
+}
 
 void ConsoleSink::write(LogLevel level, const std::string& message)
 {
     if (level < minLevel_) return;
     FILE* out = (level >= LogLevel::Error) ? stderr : stdout;
-    std::fprintf(out, "[%s] %s\n", levelTag(level), message.c_str());
+    const char* color = consoleColored ? levelColor(level) : "";
+    if (*color)
+        std::fprintf(out, "\x1b[%sm[%s] %s\x1b[0m\n", color + 1,
+                     levelTag(level), message.c_str());
+    else
+        std::fprintf(out, "[%s] %s\n", levelTag(level), message.c_str());
     std::fflush(out);
 }
 
