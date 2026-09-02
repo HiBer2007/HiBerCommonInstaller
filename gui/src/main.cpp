@@ -129,9 +129,10 @@ int main(int argc, char* argv[])
 #ifndef HCI_PRODUCT_QRC_NAME
 #define HCI_PRODUCT_QRC_NAME hci_product
 #endif
-#define HCI_QRC_GLUE(x) x
-#define HCI_QINIT_RESOURCE(name) Q_INIT_RESOURCE(HCI_QRC_GLUE(name))
-    HCI_QINIT_RESOURCE(HCI_PRODUCT_QRC_NAME);
+    // Indirect macro: expand HCI_PRODUCT_QRC_NAME first, then let
+    // Q_INIT_RESOURCE token-paste the real unit name.
+#define HCI_QINIT_I(name) Q_INIT_RESOURCE(name)
+    HCI_QINIT_I(HCI_PRODUCT_QRC_NAME);
 #endif
 
     ProductConfig product;
