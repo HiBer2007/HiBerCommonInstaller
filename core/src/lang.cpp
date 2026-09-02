@@ -21,6 +21,7 @@ const std::map<std::string, std::string>& zhTable()
         {"Continue", "\u7ee7\u7eed"},
         {"Finish", "\u5b8c\u6210"},
         // Welcome page
+        {"Installer", "\u5b89\u88c5\u7a0b\u5e8f"},
         {"This wizard will guide you through the installation.",
          "\u6b64\u5411\u5bfc\u5c06\u5f15\u5bfc\u60a8\u5b8c\u6210\u5b89\u88c5\u3002"},
         // License page

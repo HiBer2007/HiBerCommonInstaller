@@ -12,6 +12,7 @@ namespace hci {
 struct ProductComponent {
     std::string id;
     std::string label;
+    std::string description;  // shown under the label (GUI components page)
     std::string exe;          // exe under install root, may be empty
     std::string shortcutName; // start-menu shortcut name when selected
     bool required = false;
@@ -65,6 +66,7 @@ struct ProductConfig {
     std::string bannerFont = "slant";
     std::string defaultLanguage;     // "en" | "zh" | "" ("" -> "en")
     bool backEnabled = true;         // shell "back" button available by default
+    std::string welcomeTitle;        // GUI welcome big title (default productName)
     std::vector<ProductComponent> components;
     std::vector<ShortcutSpec> shortcuts;
     InstallConfSpec installConf;

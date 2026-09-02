@@ -32,8 +32,12 @@ struct EntryOptions {
 //   <productName>  (big letters, font: slant|standard)
 //   Powered by HiBer Common Installer Module
 // 'font' falls back to "slant" when unknown. Overlong names use
-// a smaller font automatically (standard).
-std::string renderBanner(const std::string& productName, const std::string& font = "slant");
+// a smaller font automatically (standard). Font "neo" renders the exact
+// art the NeoServerUpdateModpack main CLI prints (with 'version' on the
+// caption line when provided).
+std::string renderBanner(const std::string& productName,
+                         const std::string& font = "slant",
+                         const std::string& version = "");
 
 // ------------------------------------------------------------------
 // Library-mode API (entry 1: core as static/dynamic library).

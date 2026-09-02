@@ -30,14 +30,24 @@ std::map<std::string, PageFactory>& registry()
     return r;
 }
 
-// GUI 欢迎页标题：直接使用大字（非 CLI/TUI 的 ASCII 拼接字——那是终端的
-// 无奈之举；GUI 内用真实字体渲染）。
+// GUI 欢迎页：主标题（大字，略小）+ 副标题（中等）/描述（稍大），整体
+// 向右偏移，压缩空白。
 QWidget* welcomeTitle(const std::string& productName)
 {
     auto* label = new QLabel(QString::fromUtf8(productName.c_str()));
     QFont f = label->font();
-    f.setPointSize(26);
+    f.setPointSize(22);
     f.setBold(true);
+    label->setFont(f);
+    label->setTextInteractionFlags(Qt::NoTextInteraction);
+    return label;
+}
+
+QWidget* welcomeSubtitle(const std::string& text)
+{
+    auto* label = new QLabel(QString::fromUtf8(text.c_str()));
+    QFont f = label->font();
+    f.setPointSize(15);
     label->setFont(f);
     label->setTextInteractionFlags(Qt::NoTextInteraction);
     return label;
@@ -45,20 +55,28 @@ QWidget* welcomeTitle(const std::string& productName)
 
 // ------------------------------------------------------------------
 // Welcome page layout (common):
-//   top-left: app name (large)
-//   below:    description text
+//   left-shifted block: big title (welcomeTitle || productName),
+//   medium subtitle ("Installer"), description (slightly bigger),
 //   bottom-right: small grey "Powered by HiBer Common Installer Module"
-//                 (description sits right above it)
 QWidget* pageWelcome(const nlohmann::json&, GuiShell& shell, QVariant&)
 {
     auto* w = new QWidget(&shell);
     auto* l = new QVBoxLayout(w);
     const hci::ProductConfig& p = shell.product();
 
-    l->addWidget(welcomeTitle(p.productName));
+    // Compact layout: tighten spacing, shift content to the right.
+    l->setContentsMargins(48, 16, 16, 8);
+    l->setSpacing(10);
+
+    std::string big = p.welcomeTitle.empty() ? p.productName : p.welcomeTitle;
+    l->addWidget(welcomeTitle(big));
+    l->addWidget(welcomeSubtitle(hci::lang::tr(shell.language(), "Installer")));
 
     auto* desc = new QLabel(QString::fromUtf8(hci::lang::tr(shell.language(),
         "This wizard will guide you through the installation.").c_str()), w);
+    QFont df = desc->font();
+    df.setPointSize(13);
+    desc->setFont(df);
     desc->setWordWrap(true);
     l->addWidget(desc);
 
@@ -148,9 +166,27 @@ QWidget* pageComponents(const nlohmann::json& params, GuiShell& shell, QVariant&
             }
             list.append(cb->isChecked());
             int i = idx;
-            QObject::connect(cb, &QCheckBox::toggled, &shell,
-                             [&list, i](bool on) { list[i] = on; });
+            // CRASH FIX: do NOT capture the local 'list' by reference - the
+            // page ctor returns while the nested event loop runs, so the
+            // lambda would write a dangling stack slot. Update 'res' instead
+            // (it stays alive while blockOnPage blocks in the caller).
+            QObject::connect(cb, &QCheckBox::toggled, &shell, [&res, i](bool on) {
+                QVariantList l = res.toList();
+                while (static_cast<int>(l.size()) <= i) l.append(false);
+                l[i] = on;
+                res = l;
+            });
             l->addWidget(cb);
+            if (c.contains("description")) {
+                const std::string desc = c.value("description", "");
+                if (!desc.empty()) {
+                    auto* dl = new QLabel(QString::fromUtf8(desc.c_str()), w);
+                    dl->setStyleSheet(QStringLiteral("color: #777; font-size: 11px;"));
+                    dl->setWordWrap(true);
+                    dl->setContentsMargins(24, 0, 0, 4);
+                    l->addWidget(dl);
+                }
+            }
             ++idx;
         }
     }

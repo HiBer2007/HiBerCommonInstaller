@@ -109,12 +109,15 @@ int main(int argc, char* argv[])
 
     // Console lifecycle (entry model): started from a terminal -> keep it
     // (UTF-8 + logs); double-click -> released before the GUI appears.
+    // Detailed logging (Debug) so the GUI run log is extremely verbose.
     if (port::hasConsole()) {
         port::setUtf8Console(true);
-        Log::instance().addSink(std::make_shared<ConsoleSink>(LogLevel::Info));
+        Log::instance().addSink(
+            std::make_shared<ConsoleSink>(LogLevel::Debug));
     } else {
         Log::instance().addSink(
-            std::make_shared<FileSink>(port::tempDir() + "/hci_gui.log"));
+            std::make_shared<FileSink>(port::tempDir() + "/hci_gui.log",
+                                       LogLevel::Debug));
     }
     port::holdOrReleaseConsole();
 
@@ -165,7 +168,7 @@ int main(int argc, char* argv[])
     }
 
     if (port::hasConsole())
-        std::cout << entry::renderBanner(product.productName, product.bannerFont);
+        std::cout << entry::renderBanner(product.productName, product.bannerFont, product.version);
 
     app.setApplicationName(QString::fromUtf8(product.productName.c_str()));
     app.setOrganizationName(QString::fromUtf8(product.orgName.c_str()));

@@ -81,8 +81,24 @@ const std::map<char, Glyph>& glyphTable()
 
 } // namespace
 
-std::string renderBanner(const std::string& productName, const std::string& /*font*/)
+std::string renderBanner(const std::string& productName, const std::string& font,
+                         const std::string& version)
 {
+    // "neo": the exact ASCII art the main program (NeoServerUpdateModpack)
+    // prints at CLI startup - installers must look consistent with it.
+    if (font == "neo") {
+        std::string out;
+        out += "    _   _______ __  ____  ___\n";
+        out += "   / | / / ___// / / /  |/  /\n";
+        out += "  /  |/ /\\__ \\/ / / / /|_/ /\n";
+        out += " / /|  /___/ / /_/ / /  / /\n";
+        out += "/_/ |_//____/\\____/_/  /_/ \n";
+        out += "Neo Server Update Modpack";
+        if (!version.empty()) out += " v" + version;
+        out += "\n\n  Powered by HiBer Common Installer Module\n";
+        return out;
+    }
+
     const auto& table = glyphTable();
 
     std::string upper = productName;

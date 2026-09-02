@@ -19,13 +19,16 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QAbstractAnimation>
 #include <QDir>
 #include <QFile>
+#include <QGraphicsOpacityEffect>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QProgressBar>
+#include <QPropertyAnimation>
 #include <QPushButton>
 #include <QTextEdit>
 #include <QVBoxLayout>
@@ -53,6 +56,27 @@ std::string dirOf(const std::string& p)
     size_t slash = p.find_last_of("/\\");
     return slash == std::string::npos ? std::string(".") : p.substr(0, slash);
 }
+
+// Mirrors the framework log into the GUI live log view (detailed run log).
+class GuiLogSink : public hci::ILogSink {
+public:
+    explicit GuiLogSink(GuiShell& s) : shell_(s) {}
+    void write(hci::LogLevel lv, const std::string& m) override
+    {
+        const char* tag = "";
+        switch (lv) {
+            case hci::LogLevel::Trace: tag = "[T]"; break;
+            case hci::LogLevel::Debug: tag = "[D]"; break;
+            case hci::LogLevel::Info:  tag = "[I]"; break;
+            case hci::LogLevel::Warn:  tag = "[W]"; break;
+            case hci::LogLevel::Error: tag = "[E]"; break;
+        }
+        shell_.log(QString::fromUtf8((std::string(tag) + " " + m).c_str()));
+    }
+    const char* sinkName() const override { return "gui"; }
+private:
+    GuiShell& shell_;
+};
 } // namespace
 
 // ------------------------------------------------------------------
@@ -188,6 +212,10 @@ int GuiShell::run()
 
     hci::registerQtSources();
 
+    // Detailed logging into the GUI log view (level Debug = every step).
+    Log::instance().addSink(std::make_shared<GuiLogSink>(*this));
+    Log::instance().setLevel(LogLevel::Debug);
+
     hci::gui::GuiFlowUi ui(*this, silent_);
     hci::FlowRunner runner(product_, ctx_, &ui, script.get());
     runner.setEventBus(&bus);
@@ -197,9 +225,7 @@ int GuiShell::run()
         return hci::gui::readResource("qrc:" + path, out);
     });
 
-    titleLabel_->setText(QString::fromUtf8(product_.productName.c_str()) +
-                         QStringLiteral(" - ") +
-                         QStringLiteral("Powered by HiBer Common Installer Module"));
+    titleLabel_->setText(QString::fromUtf8(product_.productName.c_str()));
     int rc = runner.run(flow);
     if (cancelled_) rc = 1;
     loader.shutdownAll();
@@ -216,6 +242,20 @@ bool GuiShell::blockOnPage(QWidget* page, const QString& nextText)
 {
     stack_->addWidget(page);
     stack_->setCurrentWidget(page);
+
+    // Page transition fade-in (same effect the main program wizard uses:
+    // opacity 0 -> 1 over 160ms, the effect is removed when finished).
+    auto* effect = new QGraphicsOpacityEffect(page);
+    page->setGraphicsEffect(effect);
+    auto* anim = new QPropertyAnimation(effect, "opacity", page);
+    anim->setDuration(160);
+    anim->setStartValue(0.0);
+    anim->setEndValue(1.0);
+    QObject::connect(anim, &QPropertyAnimation::finished, page, [page]() {
+        page->setGraphicsEffect(nullptr);
+    });
+    anim->start(QAbstractAnimation::DeleteWhenStopped);
+
     nextBtn_->setText(nextText);
     backBtn_->setText(QString::fromUtf8(hci::lang::tr(lang_, "Back").c_str()));
     cancelBtn_->setText(QString::fromUtf8(hci::lang::tr(lang_, "Cancel").c_str()));
@@ -411,7 +451,7 @@ bool GuiFlowUi::onLicense(const std::string& text, bool& accepted)
     QVariant res;
     QWidget* page = createPage("license", nlohmann::json{{"text", text}}, shell_, res);
     if (!shell_.blockOnPage(page, QString::fromUtf8(
-            hci::lang::tr(shell_.language(), "Accept").c_str()))) return false;
+            hci::lang::tr(shell_.language(), "Next").c_str()))) return false;
     accepted = res.toBool();
     return true;
 }

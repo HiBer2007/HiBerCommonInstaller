@@ -297,7 +297,7 @@ int main(int argc, char* argv[])
 
     // Banner: product name + mandatory powered-by (stderr when --json).
     std::ostream& bannerOut = opt.jsonOut ? std::cerr : std::cout;
-    bannerOut << entry::renderBanner(product.productName, product.bannerFont);
+    bannerOut << entry::renderBanner(product.productName, product.bannerFont, product.version);
 
     // Resolve flow.
     std::string flowFile;

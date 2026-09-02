@@ -24,6 +24,7 @@ ProductComponent parseComponent(const nlohmann::json& j)
     ProductComponent c;
     c.id = j.value("id", "");
     c.label = j.value("label", c.id);
+    c.description = j.value("description", "");
     c.exe = j.value("exe", "");
     c.shortcutName = j.value("shortcutName", "");
     c.required = j.value("required", false);
@@ -60,6 +61,7 @@ ProductConfig ProductConfig::loadString(const std::string& jsonText)
     p.bannerFont = j.value("banner", nlohmann::json::object()).value("font", "slant");
     p.defaultLanguage = j.value("defaultLanguage", "");
     p.backEnabled = j.value("backEnabled", true);
+    p.welcomeTitle = j.value("welcomeTitle", "");
 
     if (j.contains("components") && j["components"].is_array()) {
         for (auto& c : j["components"]) p.components.push_back(parseComponent(c));

@@ -113,7 +113,7 @@ int main(int argc, char* argv[])
     }
 
     // Mandatory branding banner.
-    std::cout << entry::renderBanner(product.productName, product.bannerFont);
+    std::cout << entry::renderBanner(product.productName, product.bannerFont, product.version);
 
     tui::TuiShell shell(product, flowFile, opt.installPath, opt.language);
     return shell.run();
