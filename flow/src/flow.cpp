@@ -155,23 +155,41 @@ int FlowRunner::run(FlowSpec& flow)
     if (!ctx_.vars().has("tempDir")) ctx_.vars().set("tempDir", port::tempDir());
     if (!ctx_.vars().has("exeDir")) ctx_.vars().set("exeDir", port::exeDir());
 
-    for (size_t i = 0; i < flow.steps.size(); ++i) {
+    size_t i = 0;
+    history_.clear();
+    while (i < flow.steps.size()) {
         if (ctx_.cancelled()) {
             if (ui_) ui_->onMessage("install cancelled", true);
             return 1;
         }
         FlowStep& step = flow.steps[i];
+        // UI chrome per step: buttons state etc. (back available when we have
+        // already entered at least one step).
+        if (ui_) ui_->onStepParam(step.params, !history_.empty());
+        history_.push_back(i);
+
         std::string error;
         if (!runStep(flow, step, i, error)) {
+            if (ui_ && ui_->backRequested() && history_.size() >= 2) {
+                // User asked "previous step": re-run the last step.
+                history_.pop_back();      // drop the failed current step
+                i = history_.back();      // back to the previous step
+                history_.pop_back();      // will be re-pushed on entry
+                continue;                 // do NOT advance i
+            }
             if (step.onFail == "ignore") {
                 Log::Warn("step '" + step.id + "' failed (ignored): " + error);
                 if (ui_) ui_->onMessage("step '" + step.id + "' failed (ignored): " + error, true);
+                ++i;                      // advance past the failed step
                 continue;
             }
             if (ui_) ui_->onMessage("step '" + step.id + "' failed: " + error, true);
             return 1;
         }
         if (bus_) bus_->publish("hci/step", {{"id", step.id}, {"state", "done"}});
+        // Advance: runStep either left i at a jump target-1 (next/id) or
+        // untouched (sequential step) - increment reaches the right step.
+        ++i;
     }
     return 0;
 }
@@ -249,6 +267,19 @@ bool FlowRunner::runStep(FlowSpec& flow, FlowStep& step, size_t& index,
 bool FlowRunner::handleUiStep(FlowStep& step, std::string& error)
 {
     if (!ui_) { error = "interactive step '" + step.id + "' requires a shell UI"; return false; }
+
+    if (step.ui == "language") {
+        // Optional language selection (welcome precedes it in the flow);
+        // "default" param or product.defaultLanguage sets the preselect.
+        std::string def = step.params.value("default", "");
+        if (def.empty()) def = product_.defaultLanguage;
+        if (def.empty()) def = "en";
+        std::string sel = def;
+        if (!ui_->onLanguage(sel, def)) { error = "cancelled by user"; return false; }
+        if (sel.empty()) sel = def;
+        ctx_.vars().set("language", sel);
+        return true;
+    }
 
     if (step.ui == "welcome") {
         if (!ui_->onWelcome(product_.productName, product_)) { error = "cancelled by user"; return false; }

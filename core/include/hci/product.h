@@ -50,6 +50,8 @@ struct ProductConfig {
     std::string defaultMode = "gui"; // gui | tui | cli
     std::string defaultInstallPath;
     std::string bannerFont = "slant";
+    std::string defaultLanguage;     // "en" | "zh" | "" ("" -> "en")
+    bool backEnabled = true;         // shell "back" button available by default
     std::vector<ProductComponent> components;
     std::vector<ShortcutSpec> shortcuts;
     InstallConfSpec installConf;

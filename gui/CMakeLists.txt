@@ -10,6 +10,7 @@ set(GUI_SOURCES
     src/main.cpp
     src/gui_shell.cpp
     src/pages.cpp
+    src/translate.cpp
     src/qrc_source.cpp
     src/resource_utils.cpp
 )

@@ -58,6 +58,8 @@ ProductConfig ProductConfig::loadString(const std::string& jsonText)
     p.defaultMode = j.value("defaultMode", "gui");
     p.defaultInstallPath = j.value("defaultInstallPath", "");
     p.bannerFont = j.value("banner", nlohmann::json::object()).value("font", "slant");
+    p.defaultLanguage = j.value("defaultLanguage", "");
+    p.backEnabled = j.value("backEnabled", true);
 
     if (j.contains("components") && j["components"].is_array()) {
         for (auto& c : j["components"]) p.components.push_back(parseComponent(c));

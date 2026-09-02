@@ -72,6 +72,23 @@ public:
     virtual void onMessage(const std::string& text, bool isError) = 0;
     virtual void onFinish(bool success, const std::string& message,
                           const std::string& launchExe = "") = 0;
+
+    // Language selection (optional first step, "language" ui id). Default
+    // implementation accepts the prescribed default; shells may show a picker.
+    virtual bool onLanguage(std::string& selected, const std::string& def)
+    {
+        selected = def;
+        return true;
+    }
+
+    // Called right before each interactive step: lets the UI adjust its
+    // chrome from step params (e.g. "buttons": {"back": false, ...}) and
+    // whether a previous step exists (canGoBack).
+    virtual void onStepParam(const nlohmann::json& params, bool canGoBack) {}
+
+    // When an interaction returns false, the runner checks this: true means
+    // the user asked to go back to the previous step (not a cancel/abort).
+    virtual bool backRequested() const { return false; }
 };
 
 // ------------------------------------------------------------------
@@ -114,6 +131,7 @@ private:
     ExtensionRegistry* registry_ = nullptr;
     ResourceReader resourceReader_;
     std::string baseDir_;
+    std::vector<size_t> history_; // executed step indexes (back navigation)
 };
 
 } // namespace hci

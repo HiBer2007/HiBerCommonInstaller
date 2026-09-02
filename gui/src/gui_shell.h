@@ -50,6 +50,9 @@ class GuiFlowUi : public hci::IFlowUi {
 public:
     GuiFlowUi(GuiShell& shell, bool silent = false);
 
+    bool onLanguage(std::string& selected, const std::string& def) override;
+    void onStepParam(const nlohmann::json& params, bool canGoBack) override;
+    bool backRequested() const override;
     bool onWelcome(const std::string& productName,
                    const hci::ProductConfig& product) override;
     bool onLicense(const std::string& text, bool& accepted) override;
@@ -85,13 +88,24 @@ public:
     // Runs the flow; returns process exit code (0 success / 1 failure).
     int run();
 
-    // Blocks until the user clicks Next on the given page (or cancels).
-    // Returns false when cancelled. The page is adopted into the stack.
+    // Blocks until the user clicks Next on the given page (or cancels/back).
+    // Returns false when cancelled or when back was requested (query
+    // backRequested() to distinguish). The page is adopted into the stack.
     bool blockOnPage(QWidget* page, const QString& nextText);
 
     void setNextEnabled(bool on);
     void cancelFlow();
     bool cancelled() const { return cancelled_; }
+
+    // "back" navigation (previous step, FlowRunner re-runs it).
+    bool backRequested() const { return backFlag_; }
+    // Per-step chrome: params["buttons"] = {"back":false,"next":true,...},
+    // canGoBack = a previous step exists. Missing entries keep defaults.
+    void applyStepButtons(const nlohmann::json& params, bool canGoBack);
+
+    // Current UI language ("en"/"zh"); product.defaultLanguage is the seed.
+    const std::string& language() const { return lang_; }
+    void setLanguage(const std::string& l) { lang_ = l; }
 
     void log(const QString& line);          // appends to the live log view
     void setStatus(const QString& text);
@@ -129,6 +143,11 @@ private:
     HiBerGUI::ProgressCard* progressCard_ = nullptr;
     std::unique_ptr<QEventLoop> activeLoop_;
     bool gateNext_ = false;
+    bool nextForced_ = false;   // flow forced next disabled (buttons.next=false)
+    bool backVisible_ = false;  // back button shown (product.backEnabled && canGoBack)
+    bool backEnabled_ = false;  // back clickable (flow buttons.back != false)
+    bool backFlag_ = false;     // back requested by the user on last interaction
+    std::string lang_;          // active UI language ("en"|"zh")
 
     friend class GuiFlowUi;
 };
