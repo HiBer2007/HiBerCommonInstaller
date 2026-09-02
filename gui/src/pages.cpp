@@ -4,8 +4,6 @@
 
 #include "gui_shell.h"
 
-#include "hci/entry.h"
-
 #include <QCheckBox>
 #include <QDir>
 #include <QFileDialog>
@@ -17,7 +15,6 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
-#include <QFontDatabase>
 
 #include <map>
 
@@ -32,12 +29,14 @@ std::map<std::string, PageFactory>& registry()
     return r;
 }
 
-QWidget* bannerLabel(const std::string& productName, const std::string& font)
+// GUI 欢迎页标题：直接使用大字（非 CLI/TUI 的 ASCII 拼接字——那是终端的
+// 无奈之举；GUI 内用真实字体渲染）。
+QWidget* welcomeTitle(const std::string& productName)
 {
-    auto* label = new QLabel(QString::fromUtf8(
-        entry::renderBanner(productName, font).c_str()));
-    QFont f = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-    f.setPointSize(9);
+    auto* label = new QLabel(QString::fromUtf8(productName.c_str()));
+    QFont f = label->font();
+    f.setPointSize(26);
+    f.setBold(true);
     label->setFont(f);
     label->setTextInteractionFlags(Qt::NoTextInteraction);
     return label;
@@ -49,10 +48,10 @@ QWidget* pageWelcome(const nlohmann::json&, GuiShell& shell, QVariant&)
     auto* w = new QWidget(&shell);
     auto* l = new QVBoxLayout(w);
     const hci::ProductConfig& p = shell.product();
-    l->addWidget(bannerLabel(p.productName, p.bannerFont));
-    auto* info = new QLabel(QString::fromUtf8(p.productName.c_str()) +
-        QStringLiteral("\n\nThis wizard will guide you through the installation.\n\n"
-                       "Powered by HiBer Common Installer Module"), w);
+    l->addWidget(welcomeTitle(p.productName));
+    auto* info = new QLabel(QStringLiteral(
+        "This wizard will guide you through the installation.\n\n"
+        "Powered by HiBer Common Installer Module"), w);
     info->setWordWrap(true);
     l->addWidget(info);
     l->addStretch(1);

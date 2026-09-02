@@ -35,7 +35,14 @@ using namespace hci;
 namespace {
 
 struct GuiOptions {
+    // 默认产品配置：内嵌构建（HCI_EMBED_PRODUCT）直接用 qrc 资源——
+    // 全部 json/脚本/元数据/部署文件随 EXE 分发，任意工作目录运行均无需磁盘文件；
+    // 非内嵌构建回退 ./product.json（开发调试）。
+#ifdef HCI_EMBED_PRODUCT
+    std::string productJson = "qrc:/product.json";
+#else
     std::string productJson = "product.json";
+#endif
     std::string flow;
     std::string installPath;
     bool silent = false;
