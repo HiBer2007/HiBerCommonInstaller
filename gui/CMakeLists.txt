@@ -49,7 +49,23 @@ hci_add_version_info(hci_gui "HiBer Common Installer GUI" "HiBer Common Installe
 # HCI_PRODUCT_FILES supports "alias=path" entries; alias defaults to basename.
 # Example: product.json=<file>;deploy/...=<file>;...
 if(HCI_PRODUCT_FILES)
-    set(_prod_qrc "${CMAKE_CURRENT_BINARY_DIR}/hci_product.qrc")
+    # The .qrc filename carries a content hash of ALL embedded files so that
+    # editing an embedded file (product.json/flow/config) forces a NEW rcc
+    # target - AUTORCC alone only re-runs when the .qrc itself changes.
+    set(_prod_hash "")
+    foreach(_f ${HCI_PRODUCT_FILES})
+        set(_path "${_f}")
+        if(_path MATCHES "^(.*)=(.*)$")
+            set(_path "${CMAKE_MATCH_2}")
+        endif()
+        if(EXISTS "${_path}")
+            file(MD5 "${_path}" _md5)
+            string(SUBSTRING "${_md5}" 0 8 _md5)
+            string(APPEND _prod_hash "${_md5}")
+        endif()
+    endforeach()
+    string(MD5 _prod_qrc_name "${_prod_hash}")
+    set(_prod_qrc "${CMAKE_CURRENT_BINARY_DIR}/hci_product_${_prod_qrc_name}.qrc")
     file(WRITE "${_prod_qrc}" "<RCC>\n  <qresource prefix=\"/\">\n")
     foreach(_f ${HCI_PRODUCT_FILES})
         set(_alias "")
@@ -67,7 +83,7 @@ if(HCI_PRODUCT_FILES)
     set_target_properties(hci_gui PROPERTIES AUTORCC ON)
     # Resource registration happens via Q_INIT_RESOURCE(hci_product) in main.cpp.
     target_compile_definitions(hci_gui PRIVATE HCI_EMBED_PRODUCT=1)
-    message(STATUS "hci_gui: embedding product files: ${HCI_PRODUCT_FILES}")
+    message(STATUS "hci_gui: embedding product files (qrc hash ${_prod_qrc_name}): ${HCI_PRODUCT_FILES}")
 endif()
 
 # Static Qt handling (HCI_QT_STATIC=ON or vcpkg static triplet).
