@@ -207,9 +207,10 @@ int FlowRunner::run(FlowSpec& flow)
             return 1;
         }
         FlowStep& step = flow.steps[i];
-        // UI chrome per step: buttons state etc. (back available when we have
-        // already entered at least one step).
-        if (ui_) ui_->onStepParam(step.params, !history_.empty());
+        // UI chrome per step: back available after an interactive step, but
+        // never on the language/welcome pages (first-run contexts).
+        const bool noBack = step.ui == "welcome" || step.ui == "language";
+        if (ui_) ui_->onStepParam(step.params, !history_.empty() && !noBack);
         history_.push_back(i);
 
         // Step logging (visible on terminal/console for every shell).

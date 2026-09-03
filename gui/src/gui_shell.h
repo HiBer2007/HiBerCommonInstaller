@@ -166,6 +166,8 @@ private:
     std::string lang_;          // active UI language ("en"|"zh")
     QSize contentSize_;
     bool contentSizeValid_ = false;
+    bool positioned_ = false; // first page centers on the screen; later
+                              // pages keep the current window center
 
     friend class GuiFlowUi;
 };
