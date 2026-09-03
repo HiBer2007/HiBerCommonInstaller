@@ -96,7 +96,9 @@ GuiShell::GuiShell(const hci::ProductConfig& product, const std::string& flowFil
 
     setWindowTitle(QString::fromUtf8(product.productName.c_str()) +
                    QStringLiteral(" Installer"));
-    setMinimumSize(640, 460);
+    // 无最小尺寸限制：窗口完全由页面内容驱动动态调节（切页动画随内容
+    // 放大/缩小，而不是被固定下限卡住）。下限交给每页计算内部的宽松
+    // 保底值（见 blockOnPage）。
 
     auto* root = new QVBoxLayout(this);
 
@@ -274,12 +276,13 @@ bool GuiShell::blockOnPage(QWidget* page, const QString& nextText,
     // as the main program wizard: geometry animation, 200ms OutCubic).
     {
         QSize hint = page->sizeHint();
-        int w = qMax(hint.width(), 560);
+        // 宽松保底下限（窗口无最小尺寸限制，小页可以缩得很小）
+        int w = qMax(hint.width(), 440);
         if (page->layout()) {
             int hfw = page->layout()->heightForWidth(w);
             if (hfw > 0 && hfw < hint.height() * 3) hint.setHeight(hfw);
         }
-        int h = qMax(hint.height(), 300);
+        int h = qMax(hint.height(), 260);
         // + header divider + footer buttons overhead
         h += (headerLine_ && headerLine_->isVisible() ? 26 : 0) + 60;
         if (screen()) {
