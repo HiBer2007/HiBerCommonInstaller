@@ -106,6 +106,11 @@ public:
     void cancelFlow();
     bool cancelled() const { return cancelled_; }
 
+    // 页面手动申报期望内容尺寸（不依赖布局 sizeHint——布局依赖窗口高度，
+    // 存在循环；各内置页构造时按字体/文本逐行手算后调用，blockOnPage
+    // 消费一次即清除）。
+    void setContentSize(int width, int height);
+
     // "back" navigation (previous step, FlowRunner re-runs it).
     bool backRequested() const { return backFlag_; }
     // Per-step chrome: params["buttons"] = {"back":false,"next":true,...},
@@ -159,6 +164,8 @@ private:
     bool backFlag_ = false;     // back requested by the user on last interaction
     bool showHeader_ = true;    // current page shows the title header
     std::string lang_;          // active UI language ("en"|"zh")
+    QSize contentSize_;
+    bool contentSizeValid_ = false;
 
     friend class GuiFlowUi;
 };

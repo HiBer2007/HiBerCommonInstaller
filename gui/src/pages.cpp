@@ -31,6 +31,38 @@ std::map<std::string, PageFactory>& registry()
     return r;
 }
 
+// ------------------------------------------------------------------
+// 手动尺寸计算工具：布局 sizeHint 依赖窗口高度（循环），因此每个内置页
+// 用字体度量逐行手算“理想内容尺寸”，构造末尾经 shell.setContentSize 申报。
+// ------------------------------------------------------------------
+QFont sizedFont(const QFont& base, int pt, bool bold = false)
+{
+    QFont f = base;
+    f.setPointSize(pt);
+    f.setBold(bold);
+    return f;
+}
+
+int lineH(const QFont& f) { return QFontMetrics(f).height(); }
+
+int wrapH(const QFont& f, const QString& text, int width)
+{
+    return QFontMetrics(f).boundingRect(
+        QRect(0, 0, width, 100000), Qt::TextWordWrap, text).height();
+}
+
+struct PageCalc {
+    int w = 440;
+    int h = 0;
+    int spacing = 8;
+    int marginV = 24;
+    int marginH = 48 + 24; // 左 48 右 24（欢迎/常规页）
+    void line(int px) { h += px; }
+    void gap() { h += spacing; }
+    void margins() { h += marginV; }
+    void track(int px) { w = qMax(w, px + marginH); }
+};
+
 // GUI 欢迎页：主标题（大字，略小）+ 副标题（中等）/描述（稍大），整体
 // 向右偏移，压缩空白。
 QWidget* welcomeTitle(const std::string& productName)
@@ -92,6 +124,28 @@ QWidget* pageWelcome(const nlohmann::json&, GuiShell& shell, QVariant&)
     powered->setStyleSheet(QStringLiteral("color: #888; font-size: 11px;"));
     bottom->addWidget(powered);
     l->addLayout(bottom);
+
+    // 手算尺寸：标题/副标/描述（按行宽折行）/底标逐行累加 + 边距间距
+    {
+        PageCalc c;
+        c.margins(); // 上 16 + 下 8 = 24
+        const QFont base = w->font();
+        const QFont titleF = sizedFont(base, 22, true);
+        const QFont subF = sizedFont(base, 15);
+        const QFont descF = sizedFont(base, 13);
+        c.track(QFontMetrics(titleF).horizontalAdvance(QString::fromUtf8(big.c_str())));
+        c.line(lineH(titleF));
+        c.gap();
+        c.line(lineH(subF));
+        c.gap();
+        const int descW = c.w - 48 - 24;
+        c.line(wrapH(descF, QString::fromUtf8(hci::lang::tr(shell.language(),
+            "This wizard will guide you through the installation.").c_str()),
+            descW));
+        c.gap();
+        c.line(lineH(sizedFont(base, 11)));
+        shell.setContentSize(c.w, c.h);
+    }
     return w;
 }
 
@@ -118,6 +172,20 @@ QWidget* pageLicense(const nlohmann::json& params, GuiShell& shell, QVariant& re
     auto* accept = new QCheckBox(QString::fromUtf8(
         hci::lang::tr(shell.language(), "I accept the license").c_str()), w);
     l->addWidget(accept);
+
+    // 手算申报：宽 = 最长行宽 + 余量；高 = 排版行数 x 行高 + 勾选行 + 边距
+    {
+        PageCalc c;
+        QFontMetrics fm(w->font());
+        c.w = qMax(360, static_cast<int>(text->document()->idealWidth()))
+              + 28 + fm.horizontalAdvance(QLatin1Char('M'));
+        c.line(qMax(200, static_cast<int>(text->document()->size().height())
+                         + fm.lineSpacing() * 2 + 12));
+        c.gap();
+        c.line(qMax(fm.height(), 24));
+        c.margins();
+        shell.setContentSize(c.w, c.h);
+    }
     res = false;
     shell.setNextEnabled(false);
     QObject::connect(accept, &QCheckBox::toggled, &shell, [&shell, &res](bool on) {
@@ -159,6 +227,22 @@ QWidget* pagePath(const nlohmann::json& params, GuiShell& shell, QVariant& res)
     });
     shell.setNextEnabled(!edit->text().trimmed().isEmpty());
     res = edit->text();
+
+    // 手算申报
+    {
+        PageCalc c;
+        const QFont base = w->font();
+        c.line(lineH(base));
+        c.gap();
+        c.line(30); // 行编辑行
+        c.gap();
+        const int noteW = c.w - 48 - 24;
+        c.line(wrapH(base, QString::fromUtf8(hci::lang::tr(shell.language(),
+            "The target directory will be cleared before installation.").c_str()),
+            noteW));
+        c.margins();
+        shell.setContentSize(c.w, c.h);
+    }
     return w;
 }
 
@@ -214,6 +298,31 @@ QWidget* pageComponents(const nlohmann::json& params, GuiShell& shell, QVariant&
     res = list;
     // Next must be enabled - the previous page's gating must not leak here.
     shell.setNextEnabled(true);
+
+    // 手算申报：标题 + 帮助（折行）+ Σ(勾选行 + 描述折行)
+    {
+        PageCalc c;
+        const QFont base = w->font();
+        const QFont smallF = sizedFont(base, 11);
+        c.line(lineH(base));
+        c.gap();
+        const int helpW = c.w - 48 - 24;
+        c.line(wrapH(smallF, QString::fromUtf8(hci::lang::tr(shell.language(),
+            "Choose what to install. Required components cannot be unchecked.").c_str()),
+            helpW));
+        if (params.contains("components") && params["components"].is_array()) {
+            for (auto& c2 : params["components"]) {
+                c.gap();
+                c.line(qMax(lineH(base), 24));
+                const std::string desc = c2.value("description", "");
+                if (!desc.empty())
+                    c.line(wrapH(smallF, QString::fromUtf8(desc.c_str()),
+                                 helpW - 32));
+            }
+        }
+        c.margins();
+        shell.setContentSize(c.w, c.h);
+    }
     return w;
 }
 
@@ -238,9 +347,28 @@ QWidget* pageOption(const nlohmann::json& params, GuiShell& shell, QVariant& res
         }
     }
     l->addStretch(1);
+
+    // 手算申报：prompt 折行 + Σ(选项行)
+    {
+        PageCalc c;
+        const QFont base = w->font();
+        const int pw = c.w - 48 - 24;
+        if (params.contains("choices") && params["choices"].is_array()) {
+            c.line(wrapH(base, QString::fromUtf8(params.value("prompt", "").c_str()), pw));
+            c.gap();
+            for (auto& ch : params["choices"]) {
+                c.line(qMax(lineH(base), 24));
+                c.track(QFontMetrics(base).horizontalAdvance(
+                    QString::fromUtf8(ch.get<std::string>().c_str()) + QStringLiteral("O")));
+            }
+        } else {
+            c.line(lineH(base));
+        }
+        c.margins();
+        shell.setContentSize(c.w, c.h);
+    }
     return w;
 }
-
 QWidget* pageConfirm(const nlohmann::json& params, GuiShell& shell, QVariant& res)
 {
     auto* w = new QWidget(&shell);
@@ -258,6 +386,18 @@ QWidget* pageConfirm(const nlohmann::json& params, GuiShell& shell, QVariant& re
         res = on;
         shell.setNextEnabled(true);
     });
+
+    // 手算申报：prompt 折行 + 勾选行
+    {
+        PageCalc c;
+        const QFont base = w->font();
+        c.line(wrapH(base, QString::fromUtf8(params.value("prompt", "").c_str()),
+                     c.w - 48 - 24));
+        c.gap();
+        c.line(qMax(lineH(base), 24));
+        c.margins();
+        shell.setContentSize(c.w, c.h);
+    }
     return w;
 }
 
@@ -277,6 +417,18 @@ QWidget* pageInput(const nlohmann::json& params, GuiShell& shell, QVariant& res)
         shell.setNextEnabled(!required || !t.trimmed().isEmpty());
     });
     res = edit->text();
+
+    // 手算申报：prompt 折行 + 输入行
+    {
+        PageCalc c;
+        const QFont base = w->font();
+        c.line(wrapH(base, QString::fromUtf8(params.value("prompt", "").c_str()),
+                     c.w - 48 - 24));
+        c.gap();
+        c.line(30);
+        c.margins();
+        shell.setContentSize(c.w, c.h);
+    }
     return w;
 }
 
@@ -333,6 +485,25 @@ QWidget* pageGit(const nlohmann::json& params, GuiShell& shell, QVariant& res)
     }
     res = QString::fromUtf8(def.c_str());
     l->addStretch(1);
+
+    // 手算申报：标题 + 检测信息（折行）+ Σ(选项行)
+    {
+        PageCalc c;
+        const QFont base = w->font();
+        const QFont smallF = sizedFont(base, 11);
+        c.line(lineH(base));
+        c.gap();
+        const int iw = c.w - 48 - 24;
+        c.line(wrapH(smallF, QString::fromUtf8(infoText.c_str()), iw));
+        int radios = 2;
+        if (rbInst) ++radios;
+        for (int i = 0; i < radios; ++i) {
+            c.gap();
+            c.line(qMax(lineH(base), 24));
+        }
+        c.margins();
+        shell.setContentSize(c.w, c.h);
+    }
     return w;
 }
 
@@ -395,9 +566,34 @@ QWidget* pageFinish(const nlohmann::json& params, GuiShell& shell, QVariant& res
         }
     }
     l->addStretch(1);
+
+    // 手算申报：结果消息（折行）+ Σ(启动选项行/单勾选行)
+    {
+        PageCalc c;
+        const QFont base = w->font();
+        QFont msgF = sizedFont(base, 13, true);
+        int msgH = wrapH(msgF, QString::fromUtf8(params.value("message", "").c_str()),
+                         c.w - 48 - 24);
+        c.line(msgH);
+        size_t n = 0;
+        for (auto& o : options) {
+            c.gap();
+            c.line(qMax(lineH(base), 24));
+            size_t eq = o.find('=');
+            c.track(QFontMetrics(base).horizontalAdvance(
+                QString::fromUtf8((eq == std::string::npos ? o : o.substr(0, eq)).c_str()) +
+                QStringLiteral("O")));
+            ++n;
+        }
+        if (success && n == 0 && !params.value("launch", "").empty()) {
+            c.gap();
+            c.line(qMax(lineH(base), 24));
+        }
+        c.margins();
+        shell.setContentSize(c.w, c.h);
+    }
     return w;
 }
-
 QWidget* pageFallback(const nlohmann::json& params, GuiShell& shell, QVariant&)
 {
     auto* w = new QWidget(&shell);

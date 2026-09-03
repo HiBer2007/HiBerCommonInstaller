@@ -260,6 +260,12 @@ void GuiShell::setHeaderVisible(bool on)
     if (headerLine_) headerLine_->setVisible(on);
 }
 
+void GuiShell::setContentSize(int width, int height)
+{
+    contentSize_ = QSize(width, height);
+    contentSizeValid_ = true;
+}
+
 void GuiShell::setVisibleForFlow()
 {
     if (!silent_ && !isVisible()) show();
@@ -274,13 +280,15 @@ bool GuiShell::blockOnPage(QWidget* page, const QString& nextText,
 
     // Content-driven window sizing with an animated transition (same effect
     // as the main program wizard: geometry animation, 200ms OutCubic).
-    // 尺寸公式：内容 sizeHint（页面可自报，如协议页按行数/最长行）+ 页面
-    // 自行预留的上下边距；头部/按钮开销按当页实际可见部分叠加；全局上限
-    // = 屏幕 2/3；缩放时保持窗口【中心】不动（不是左上角）。
+    // 尺寸优先取【页面手算申报】的尺寸（setContentSize）；未申报的页面
+    // （外来/拓展页）回退 layout sizeHint + heightForWidth 兜底。
+    // 全局上限 = 屏幕 2/3；缩放保持窗口【中心】不动。
     {
-        QSize hint = page->sizeHint();
+        const bool manualSized = contentSizeValid_;
+        QSize hint = manualSized ? contentSize_ : page->sizeHint();
+        contentSizeValid_ = false;
         int w = qMax(hint.width(), 440);
-        if (page->layout()) {
+        if (!manualSized && page->layout()) {
             int hfw = page->layout()->heightForWidth(w);
             if (hfw > 0 && hfw < hint.height() * 2) hint.setHeight(hfw);
         }
