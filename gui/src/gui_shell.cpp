@@ -291,31 +291,45 @@ void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
                            : QRect(0, 0, 1280, 800);
     w = qMin(w, avail.width() * 2 / 3);
     h = qMin(h, avail.height() * 2 / 3);
+    // 高度向上取整并取整到偶数（避免亚像素/布局取整差）
+    h = ((h + 1) / 2) * 2;
 
     // 位置锚定（用户约定公式）：
-    //   新左上角 = 基准中心 − 新尺寸/2
-    // 基准中心：首屏 = 屏幕可用区中心；之后 = 【最终设置的】上一窗口中心
-    // （即当前 geometry 中心；尺寸每次变化都重新按此公式计算，不沿用旧
-    // 左上角，杜绝漂移）。
+    //   新【外框】左上角 = 基准中心 − 新尺寸/2 − 外框偏移
+    // 基准中心：首屏 = 屏幕可用区中心；之后 = 【最终设置的】上一窗口的
+    // 外框中心（frameGeometry——含标题栏/边框，用户感知的窗口中心；
+    // 用客户区 geometry 中心会随标题栏/边框在尺寸变化时产生 ~10px 漂移，
+    // 即“欢迎→协议下移=标题栏高、协议→欢迎右移=标题栏宽”的根因）。
     const bool first = !positioned_;
     QRect cur = geometry();
+    QRect frame = frameGeometry();
+    // 外框相对客户区偏移（无装饰窗口为 0）
+    const int frameLeft = frame.left() - cur.left();
+    const int frameTop = frame.top() - cur.top();
+    const int frameRight = frame.right() - cur.right();
+    const int frameBottom = frame.bottom() - cur.bottom();
     QPoint center = avail.center();
     if (positioned_ && cur.isValid() && cur.width() > 1 && cur.height() > 1) {
-        center = cur.center();
+        center = frame.center(); // 外框中心（用户感知中心）
     }
-    const int left = center.x() - w / 2;
-    const int top = center.y() - h / 2;
+    const int left = center.x() - w / 2 - frameLeft;
+    const int top = center.y() - h / 2 - frameTop;
     QRect target(left, top, w, h);
-    if (target.right() > avail.right()) target.moveRight(avail.right());
-    if (target.left() < avail.left()) target.moveLeft(avail.left());
-    if (target.bottom() > avail.bottom()) target.moveBottom(avail.bottom());
-    if (target.top() < avail.top()) target.moveTop(avail.top());
+    // clamp 以【外框】为准
+    QRect tFrame(target.x() + frameLeft, target.y() + frameTop,
+                 w + frameLeft + frameRight, h + frameTop + frameBottom);
+    if (tFrame.right() > avail.right()) tFrame.moveRight(avail.right());
+    if (tFrame.left() < avail.left()) tFrame.moveLeft(avail.left());
+    if (tFrame.bottom() > avail.bottom()) tFrame.moveBottom(avail.bottom());
+    if (tFrame.top() < avail.top()) tFrame.moveTop(avail.top());
+    target = QRect(tFrame.x() - frameLeft, tFrame.y() - frameTop, w, h);
     positioned_ = true;
 
     // 诊断日志（Info 级常驻，便于核对窗口中心/左上角与偏移来源）
-    Log::Info(fmt("geometry: first={} cur=({},{}){}x{} center=({},{}) "
-                  "target=({},{}){}x{} avail={}x{}",
+    Log::Info(fmt("geometry: first={} cur=({},{}){}x{} frame=({},{}){}x{} "
+                  "center=({},{}) target=({},{}){}x{} avail={}x{}",
                   first ? 1 : 0, cur.x(), cur.y(), cur.width(), cur.height(),
+                  frame.x(), frame.y(), frame.width(), frame.height(),
                   center.x(), center.y(), target.x(), target.y(),
                   target.width(), target.height(), avail.width(),
                   avail.height()));
@@ -513,7 +527,7 @@ bool GuiFlowUi::onLanguage(std::string& selected, const std::string& def)
                           + listFrame + listPad;
         const int bbH = bb->sizeHint().height();       // 已含按钮内边距
         const int layoutGaps = 8 + 8;                   // 两处间距
-        const int dlgH = fmf.height() + layoutGaps + listH + bbH + 36;
+        const int dlgH = fmf.height() + layoutGaps + listH + bbH + 40;
         dlg.setFixedSize(wantW + 36, dlgH);
     }
 
