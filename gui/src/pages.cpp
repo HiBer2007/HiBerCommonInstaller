@@ -8,6 +8,7 @@
 #include <QCheckBox>
 #include <QDir>
 #include <QFileDialog>
+#include <QFontMetrics>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -101,6 +102,18 @@ QWidget* pageLicense(const nlohmann::json& params, GuiShell& shell, QVariant& re
     auto* text = new QTextEdit(w);
     text->setReadOnly(true);
     text->setPlainText(QString::fromUtf8(params.value("text", "").c_str()));
+    // 尺寸按协议内容计算：宽度 = 最长行宽，高度 = 排版行数 x 行高
+    // （外加边距/滚动条余量）；全局 2/3 屏幕上限由 GuiShell 在 blockOnPage
+    // 统一截断，这里只给出“理想”内容尺寸。
+    {
+        QFontMetrics fm(text->font());
+        const int lineH = fm.lineSpacing();
+        const int idealW = qMax(360, static_cast<int>(text->document()->idealWidth()));
+        const int docH = static_cast<int>(text->document()->size().height());
+        const int wantH = qMax(200, docH + lineH * 2 + 12);
+        text->setMinimumSize(idealW + 28 + fm.horizontalAdvance(QLatin1Char('M')),
+                             wantH);
+    }
     l->addWidget(text, 1);
     auto* accept = new QCheckBox(QString::fromUtf8(
         hci::lang::tr(shell.language(), "I accept the license").c_str()), w);

@@ -274,24 +274,29 @@ bool GuiShell::blockOnPage(QWidget* page, const QString& nextText,
 
     // Content-driven window sizing with an animated transition (same effect
     // as the main program wizard: geometry animation, 200ms OutCubic).
+    // 尺寸公式：内容 sizeHint（页面可自报，如协议页按行数/最长行）+ 页面
+    // 自行预留的上下边距；头部/按钮开销按当页实际可见部分叠加；全局上限
+    // = 屏幕 2/3；缩放时保持窗口【中心】不动（不是左上角）。
     {
         QSize hint = page->sizeHint();
-        // 宽松保底下限（窗口无最小尺寸限制，小页可以缩得很小）
         int w = qMax(hint.width(), 440);
         if (page->layout()) {
             int hfw = page->layout()->heightForWidth(w);
-            if (hfw > 0 && hfw < hint.height() * 3) hint.setHeight(hfw);
+            if (hfw > 0 && hfw < hint.height() * 2) hint.setHeight(hfw);
         }
         int h = qMax(hint.height(), 260);
-        // + header divider + footer buttons overhead
-        h += (headerLine_ && headerLine_->isVisible() ? 26 : 0) + 60;
+        // 页眉（标题+分割线，仅当页显示）与页脚（按钮行）实际开销
+        h += (showHeader_ ? 24 : 0) + 56;
         if (screen()) {
             QRect avail = screen()->availableGeometry();
-            w = qMin(w, avail.width() - 60);
-            h = qMin(h, avail.height() - 120);
+            // 全局上限：宽/高均不超过屏幕 2/3
+            w = qMin(w, avail.width() * 2 / 3);
+            h = qMin(h, avail.height() * 2 / 3);
         }
         const QRect cur = geometry();
-        const QRect target(cur.x(), cur.y(), w, h);
+        // 中心锚定：目标矩形以当前窗口中心为几何中心
+        QRect target(cur.center().x() - w / 2,
+                     cur.center().y() - h / 2, w, h);
         if (cur != target) {
             auto* anim = new QPropertyAnimation(this, "geometry", this);
             anim->setDuration(200);
@@ -436,6 +441,7 @@ bool GuiFlowUi::onLanguage(std::string& selected, const std::string& def)
     QDialog dlg(&shell_);
     dlg.setWindowTitle(QString::fromUtf8(
         hci::lang::tr(def, "Language").c_str()));
+    // 语言窗同样动态尺寸（无最小限制）：宽度按最长语言名计算。
     auto* l = new QVBoxLayout(&dlg);
     auto* lbl = new QLabel(QString::fromUtf8(
         hci::lang::tr(def, "Select language:").c_str()), &dlg);
@@ -443,18 +449,23 @@ bool GuiFlowUi::onLanguage(std::string& selected, const std::string& def)
     auto* list = new QListWidget(&dlg);
     auto langs = hci::lang::availableLanguages();
     int pre = 0;
+    QFontMetrics fm(list->font());
+    int wantW = 240;
     for (size_t i = 0; i < langs.size(); ++i) {
-        list->addItem(QString::fromUtf8(langs[i].second.c_str()));
+        const QString item = QString::fromUtf8(langs[i].second.c_str());
+        list->addItem(item);
+        wantW = qMax(wantW, fm.horizontalAdvance(item) + 48);
         if (langs[i].first == def) pre = static_cast<int>(i);
     }
     list->setCurrentRow(pre);
+    list->setMinimumWidth(wantW);
     l->addWidget(list);
     auto* bb = new QDialogButtonBox(QDialogButtonBox::Ok |
                                     QDialogButtonBox::Cancel, &dlg);
     QObject::connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
     QObject::connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
     l->addWidget(bb);
-    dlg.setMinimumWidth(280);
+    // 无最小宽度限制：对话框随内容（语言名长度）自适应
 
     if (dlg.exec() != QDialog::Accepted) return false; // user backed out
     selected = langs[static_cast<size_t>(list->currentRow())].first;
