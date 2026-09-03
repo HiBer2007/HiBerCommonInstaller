@@ -266,6 +266,61 @@ void GuiShell::setContentSize(int width, int height)
     contentSizeValid_ = true;
 }
 
+// ------------------------------------------------------------------
+// 统一窗口几何调度（尺寸/中心/clamp/动画唯一入口）。
+// 内容尺寸：页面手算申报优先，外来页回退 sizeHint+hfw；全局上限=屏幕
+// 2/3；位置：首屏=屏幕中心且【直接落位不播动画】（语言窗之后主窗口首次
+// 绘制即达目标位置，避免从 (0,0) 飞入）；后续页面以当前窗口中心为锚
+// （中心不动）+ clamp 到可用区 + 200ms OutCubic 几何动画。
+// ------------------------------------------------------------------
+void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
+{
+    const bool manualSized = contentSizeValid_;
+    QSize hint = manualSized ? contentSize_ : page->sizeHint();
+    contentSizeValid_ = false;
+    int w = qMax(hint.width(), 440);
+    if (!manualSized && page->layout()) {
+        int hfw = page->layout()->heightForWidth(w);
+        if (hfw > 0 && hfw < hint.height() * 2) hint.setHeight(hfw);
+    }
+    int h = qMax(hint.height(), 180);
+    // 页眉（仅当页显示）与页脚（按钮行实际高度）开销
+    const int footerH = qMax(nextBtn_->sizeHint().height(), 28) + 8;
+    h += (showHeader ? 24 : 0) + footerH;
+    QRect avail = screen() ? screen()->availableGeometry()
+                           : QRect(0, 0, 1280, 800);
+    w = qMin(w, avail.width() * 2 / 3);
+    h = qMin(h, avail.height() * 2 / 3);
+
+    QPoint center = avail.center();
+    const bool first = !positioned_;
+    QRect cur = geometry();
+    if (positioned_ && cur.isValid()) {
+        center = cur.center();
+    }
+    // 目标行高/宽度每次变化都会重新以（最新）中心为锚计算，避免沿用旧
+    // 点位造成漂移。
+    QRect target(center.x() - w / 2, center.y() - h / 2, w, h);
+    if (target.right() > avail.right()) target.moveRight(avail.right());
+    if (target.left() < avail.left()) target.moveLeft(avail.left());
+    if (target.bottom() > avail.bottom()) target.moveBottom(avail.bottom());
+    if (target.top() < avail.top()) target.moveTop(avail.top());
+    positioned_ = true;
+    if (first || cur == target) {
+        setGeometry(target);
+        return;
+    }
+    auto* anim = new QPropertyAnimation(this, "geometry", this);
+    anim->setDuration(200);
+    QEasingCurve easing(QEasingCurve::OutCubic);
+    anim->setEasingCurve(easing);
+    anim->setStartValue(cur);
+    anim->setEndValue(target);
+    QObject::connect(anim, &QPropertyAnimation::finished, this,
+                     [this, target]() { setGeometry(target); });
+    anim->start(QAbstractAnimation::DeleteWhenStopped);
+}
+
 void GuiShell::setVisibleForFlow()
 {
     if (!silent_ && !isVisible()) show();
@@ -278,55 +333,8 @@ bool GuiShell::blockOnPage(QWidget* page, const QString& nextText,
     stack_->addWidget(page);
     stack_->setCurrentWidget(page);
 
-    // Content-driven window sizing with an animated transition (same effect
-    // as the main program wizard: geometry animation, 200ms OutCubic).
-    // 优先取页面手算申报尺寸；外来页回退 sizeHint+hfw。全局上限=屏幕 2/3；
-    // 【位置】跟随主程序向导语义：首屏居中于屏幕可用区，之后以当前窗口
-    // 中心为锚（中心不动），并 clamp 回可用区。
-    {
-        const bool manualSized = contentSizeValid_;
-        QSize hint = manualSized ? contentSize_ : page->sizeHint();
-        contentSizeValid_ = false;
-        int w = qMax(hint.width(), 440);
-        if (!manualSized && page->layout()) {
-            int hfw = page->layout()->heightForWidth(w);
-            if (hfw > 0 && hfw < hint.height() * 2) hint.setHeight(hfw);
-        }
-        int h = qMax(hint.height(), 180);
-        // 页眉（仅当页显示）与页脚（按钮行实际高度）开销
-        const int footerH = qMax(nextBtn_->sizeHint().height(), 28) + 8;
-        h += (showHeader_ ? 24 : 0) + footerH;
-        QRect avail = screen() ? screen()->availableGeometry()
-                               : QRect(0, 0, 1280, 800);
-        w = qMin(w, avail.width() * 2 / 3);
-        h = qMin(h, avail.height() * 2 / 3);
-        QPoint center = avail.center();
-        QRect cur;
-        if (positioned_) {
-            cur = geometry();
-            if (cur.isValid()) center = cur.center();
-        }
-        QRect target(center.x() - w / 2, center.y() - h / 2, w, h);
-        // clamp 到可用区（防多屏/缩放下越界）
-        if (target.right() > avail.right()) target.moveRight(avail.right());
-        if (target.left() < avail.left()) target.moveLeft(avail.left());
-        if (target.bottom() > avail.bottom()) target.moveBottom(avail.bottom());
-        if (target.top() < avail.top()) target.moveTop(avail.top());
-        positioned_ = true;
-        if (cur != target) {
-            auto* anim = new QPropertyAnimation(this, "geometry", this);
-            anim->setDuration(200);
-            QEasingCurve easing(QEasingCurve::OutCubic);
-            anim->setEasingCurve(easing);
-            anim->setStartValue(cur);
-            anim->setEndValue(target);
-            QObject::connect(anim, &QPropertyAnimation::finished, this,
-                             [this, target]() { setGeometry(target); });
-            anim->start(QAbstractAnimation::DeleteWhenStopped);
-        } else {
-            setGeometry(target);
-        }
-    }
+    // 统一窗口几何调度（尺寸/中心/clamp/动画唯一入口）
+    scheduleGeometry(page, showHeader);
 
     // Page transition fade-in (same effect the main program wizard uses:
     // opacity 0 -> 1 over 160ms, the effect is removed when finished).
@@ -482,13 +490,17 @@ bool GuiFlowUi::onLanguage(std::string& selected, const std::string& def)
     QObject::connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
     l->addWidget(bb);
     // 语言窗手算固定尺寸：宽 = 最长语言名 + 余量；高 = 标签 + 列表项数 x
-    // 行高 + 按钮行 + 边距（不再交给布局/默认 sizeHint，避免偏高）
+    // 行高 + 按钮行 + 边距（列表含 frame 2x2 + 项内边距，按钮行含内边距）
     {
         QFontMetrics fmf(lbl->font());
-        const int listH = fmf.height() * static_cast<int>(langs.size()) + 12;
-        const int bbH = bb->sizeHint().height();
-        const int dlgH = fmf.height() + 8 + listH + 8 + bbH + 24;
-        dlg.setFixedSize(wantW + 32, dlgH);
+        const int listFrame = 4 + 4;            // 列表边框上下
+        const int listPad = 2 + 2;              // 列表项内边距
+        const int listH = fmf.height() * static_cast<int>(langs.size())
+                          + listFrame + listPad;
+        const int bbH = bb->sizeHint().height();       // 已含按钮内边距
+        const int layoutGaps = 8 + 8;                   // 两处间距
+        const int dlgH = fmf.height() + layoutGaps + listH + bbH + 28;
+        dlg.setFixedSize(wantW + 36, dlgH);
     }
 
     if (dlg.exec() != QDialog::Accepted) return false; // user backed out

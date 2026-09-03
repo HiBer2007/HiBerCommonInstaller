@@ -173,12 +173,14 @@ QWidget* pageLicense(const nlohmann::json& params, GuiShell& shell, QVariant& re
         hci::lang::tr(shell.language(), "I accept the license").c_str()), w);
     l->addWidget(accept);
 
-    // 手算申报：宽 = 最长行宽 + 余量；高 = 排版行数 x 行高 + 勾选行 + 边距
+    // 手算申报：宽 = 最长行（idealWidth）+ 左右边框/内边距/滚动条留白；
+    // 高 = 排版行数 x 行高 + 勾选行 + 边距
     {
         PageCalc c;
         QFontMetrics fm(w->font());
+        const int charW = fm.horizontalAdvance(QLatin1Char('M'));
         c.w = qMax(360, static_cast<int>(text->document()->idealWidth()))
-              + 28 + fm.horizontalAdvance(QLatin1Char('M'));
+              + charW * 2 + 44; // 框 2x2 + 内边距 + 垂直滚动条约 20px
         c.line(qMax(200, static_cast<int>(text->document()->size().height())
                          + fm.lineSpacing() * 2 + 12));
         c.gap();

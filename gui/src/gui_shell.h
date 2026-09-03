@@ -111,6 +111,11 @@ public:
     // 消费一次即清除）。
     void setContentSize(int width, int height);
 
+    // 统一窗口几何调度（唯一入口）：内容尺寸（手算优先）→ 中心锚定
+    // （首屏=屏幕中心且不播动画，之后=当前窗口中心）→ 可用区 clamp →
+    // 200ms OutCubic 几何动画。上一步/下一步/任何页面变化都走这里。
+    void scheduleGeometry(QWidget* page, bool showHeader);
+
     // "back" navigation (previous step, FlowRunner re-runs it).
     bool backRequested() const { return backFlag_; }
     // Per-step chrome: params["buttons"] = {"back":false,"next":true,...},
