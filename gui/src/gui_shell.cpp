@@ -312,13 +312,13 @@ void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
     if (target.top() < avail.top()) target.moveTop(avail.top());
     positioned_ = true;
 
-    // 诊断日志：中心/左上角/目标/可用区逐次可见，便于核对偏移来源
-    Log::Debug(fmt("geometry: first={} cur=({},{}){}x{} center=({},{}) "
-                   "target=({},{}){}x{} avail={}x{}",
-                   first ? 1 : 0, cur.x(), cur.y(), cur.width(), cur.height(),
-                   center.x(), center.y(), target.x(), target.y(),
-                   target.width(), target.height(), avail.width(),
-                   avail.height()));
+    // 诊断日志（Info 级常驻，便于核对窗口中心/左上角与偏移来源）
+    Log::Info(fmt("geometry: first={} cur=({},{}){}x{} center=({},{}) "
+                  "target=({},{}){}x{} avail={}x{}",
+                  first ? 1 : 0, cur.x(), cur.y(), cur.width(), cur.height(),
+                  center.x(), center.y(), target.x(), target.y(),
+                  target.width(), target.height(), avail.width(),
+                  avail.height()));
 
     if (first || cur == target) {
         setGeometry(target);
