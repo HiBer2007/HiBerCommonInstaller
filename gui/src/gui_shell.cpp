@@ -292,20 +292,34 @@ void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
     w = qMin(w, avail.width() * 2 / 3);
     h = qMin(h, avail.height() * 2 / 3);
 
-    QPoint center = avail.center();
+    // 位置锚定（用户约定公式）：
+    //   新左上角 = 基准中心 − 新尺寸/2
+    // 基准中心：首屏 = 屏幕可用区中心；之后 = 【最终设置的】上一窗口中心
+    // （即当前 geometry 中心；尺寸每次变化都重新按此公式计算，不沿用旧
+    // 左上角，杜绝漂移）。
     const bool first = !positioned_;
     QRect cur = geometry();
-    if (positioned_ && cur.isValid()) {
+    QPoint center = avail.center();
+    if (positioned_ && cur.isValid() && cur.width() > 1 && cur.height() > 1) {
         center = cur.center();
     }
-    // 目标行高/宽度每次变化都会重新以（最新）中心为锚计算，避免沿用旧
-    // 点位造成漂移。
-    QRect target(center.x() - w / 2, center.y() - h / 2, w, h);
+    const int left = center.x() - w / 2;
+    const int top = center.y() - h / 2;
+    QRect target(left, top, w, h);
     if (target.right() > avail.right()) target.moveRight(avail.right());
     if (target.left() < avail.left()) target.moveLeft(avail.left());
     if (target.bottom() > avail.bottom()) target.moveBottom(avail.bottom());
     if (target.top() < avail.top()) target.moveTop(avail.top());
     positioned_ = true;
+
+    // 诊断日志：中心/左上角/目标/可用区逐次可见，便于核对偏移来源
+    Log::Debug(fmt("geometry: first={} cur=({},{}){}x{} center=({},{}) "
+                   "target=({},{}){}x{} avail={}x{}",
+                   first ? 1 : 0, cur.x(), cur.y(), cur.width(), cur.height(),
+                   center.x(), center.y(), target.x(), target.y(),
+                   target.width(), target.height(), avail.width(),
+                   avail.height()));
+
     if (first || cur == target) {
         setGeometry(target);
         return;
@@ -499,7 +513,7 @@ bool GuiFlowUi::onLanguage(std::string& selected, const std::string& def)
                           + listFrame + listPad;
         const int bbH = bb->sizeHint().height();       // 已含按钮内边距
         const int layoutGaps = 8 + 8;                   // 两处间距
-        const int dlgH = fmf.height() + layoutGaps + listH + bbH + 28;
+        const int dlgH = fmf.height() + layoutGaps + listH + bbH + 36;
         dlg.setFixedSize(wantW + 36, dlgH);
     }
 
