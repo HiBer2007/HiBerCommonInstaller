@@ -103,6 +103,10 @@ GuiShell::GuiShell(const hci::ProductConfig& product, const std::string& flowFil
     // 保底值（见 blockOnPage）。
 
     auto* root = new QVBoxLayout(this);
+    // 尺寸完全由调度器手算决定：禁止布局用 minimumSize 反过来强制窗口
+    // 尺寸（否则页面内容一变就把窗口撑大、中心随之漂移）。布局只负责
+    // 摆放，不再改写 geometry。
+    root->setSizeConstraint(QLayout::SetNoConstraint);
 
     titleLabel_ = new QLabel(this);
     titleLabel_->setStyleSheet(QStringLiteral(
