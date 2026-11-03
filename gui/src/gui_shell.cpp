@@ -33,6 +33,7 @@
 #include <QPropertyAnimation>
 #include <QPushButton>
 #include <QTextEdit>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 
@@ -294,10 +295,11 @@ void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
     const int footerH = qMax(nextBtn_->sizeHint().height(), 28) + 8;
     h += (showHeader ? 24 : 0) + footerH;
     // 【下限=布局最小尺寸】布局 sizeHint 依赖窗口高度（循环、不可用），但
-    // minimumSize 只由内容决定（无循环）。不加这个下限时，setGeometry
-    // 会被布局静默撑大 → 实际尺寸>请求尺寸 → 中心随之偏移（实测 496x216
-    // 被撑到 527x255）。
+    // minimumSize 只由内容决定（无循环）。激活布局后再取，否则新页面尚未
+    // 布局完成时最小尺寸偏小，setGeometry 会被静默撑大（实测协议页 316→343）。
+    if (page->layout()) page->layout()->activate();
     if (layout()) {
+        layout()->activate();
         const QSize minSize = layout()->minimumSize();
         w = qMax(w, minSize.width());
         h = qMax(h, minSize.height());
@@ -384,6 +386,16 @@ void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
 
     if (first || cur == target) {
         setGeometry(target);
+        // 尺寸可能被布局/窗口管理器再次撑大 → 之后按实际外框中心回正
+        auto enforce = [this]() {
+            const QRect f = frameGeometry();
+            const QPoint d = f.center() - anchorCenter_;
+            if (d.x() != 0 || d.y() != 0)
+                move(geometry().topLeft() - d);
+        };
+        enforce();
+        QTimer::singleShot(0, this, [enforce]() mutable { enforce(); });
+        QTimer::singleShot(60, this, [enforce]() mutable { enforce(); });
         traceActual("immediate");
         return;
     }
@@ -396,6 +408,11 @@ void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
     QObject::connect(anim, &QPropertyAnimation::finished, this,
                      [this, target, traceActual]() {
                          setGeometry(target);
+                         // 动画结束后同样按实际外框中心回正（内容撑大时）
+                         const QRect f = frameGeometry();
+                         const QPoint d = f.center() - anchorCenter_;
+                         if (d.x() != 0 || d.y() != 0)
+                             move(geometry().topLeft() - d);
                          traceActual("anim-end");
                      });
     anim->start(QAbstractAnimation::DeleteWhenStopped);
