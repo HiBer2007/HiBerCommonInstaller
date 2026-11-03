@@ -374,7 +374,7 @@ void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
         }
     };
     traceLine(diag);
-    auto traceActual = [this, &traceLine](const char* when) {
+    auto traceActual = [this, traceLine](const char* when) {
         const QRect g = geometry();
         const QRect f = frameGeometry();
         traceLine(fmt("actual[{}]: geometry=({},{}){}x{} frame=({},{}){}x{}",
@@ -394,7 +394,7 @@ void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
     anim->setStartValue(cur);
     anim->setEndValue(target);
     QObject::connect(anim, &QPropertyAnimation::finished, this,
-                     [this, target, &traceActual]() {
+                     [this, target, traceActual]() {
                          setGeometry(target);
                          traceActual("anim-end");
                      });
