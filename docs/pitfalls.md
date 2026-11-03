@@ -38,6 +38,12 @@
 
 ## 运行期（加载/流程）
 
+### 窗口中心漂移（GUI 尺寸/位置）
+- 现象：切页时窗口中心向下/右偏移约一个标题栏（10~60px），back 回来又反向偏；`setGeometry` 请求 496x216 实际变成 527x255
+- 根因（三层叠加）：① 用运行时 `geometry()`（客户区）中心当锚，边框不对称 → 漂移；② 外框↔客户区换算把 `frame − client` 的负内缩量**符号写反**（`client = frame + bTop` 应为 `− bTop`），偏移 2×标题栏高；③ 布局 `minimumSize` 在页面布局完成后反向撑大窗口，尺寸变化又带动中心
+- 修法：调度器自持中心锚（`anchorCenter_`，不读回运行时几何）+ 先构造 `frameTarget` 反推 `client = frameTarget − (bLeft,bTop)` + 宽高向上取偶 + 根布局 `setSizeConstraint(QLayout::SetNoConstraint)`（布局只摆放不改尺寸）+ 应用后按实际 `frameGeometry().center()` 自校正；诊断用 `HCI_TRACE_GEOM=1` → `%TEMP%/hci_geom.log`
+- 验证：两页 `actual[...]` 轨迹的 frame 中心一致（如均 `(1279,720)`）
+
 ### 静态库跨 DLL 状态重复（ExtensionRegistry）
 - 现象：CLI/GUI 里 `--with-editor` 报 unknown option，尽管 DLL 已加载并注册
 - 根因：`ExtensionRegistry::instance()` 的函数级静态在 exe 与拓展 DLL（各链一份 hci_core 静态库）中各自独立

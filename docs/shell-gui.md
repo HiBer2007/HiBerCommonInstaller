@@ -36,6 +36,20 @@ hci_gui [options]
 
 每次切页**按页面内容解算**：宽度 = `max(sizeHint.w, 560)`；高度优先 `layout()->heightForWidth(w)`（文本换行页精确），叠加标题头/分割线与页脚按钮的高度 → 屏幕可用区 clamp → **`QPropertyAnimation(geometry)` 200ms `OutCubic` 动效调节**（与主程序向导同款，结束后应用最终尺寸）。
 
+### 几何计算核心（`GuiShell::scheduleGeometry`，唯一入口）
+
+页面手算优先：内置页构造末尾调用 `shell.setContentSize(w, h)` 申报理想尺寸（字体度量逐行累加），调度器消费一次。
+
+1. **中心锚由调度器自持**（`anchorCenter_` = 外框中心）：**绝不读回运行时 `geometry()`**——客户区/边框/动画中间态都会引入漂移。首屏锚 = 屏幕可用区中心；之后每次调度 = 中心恒等 + 尺寸变更；clamp 后回写实际外框中心。
+2. **外框↔客户区精确换算**（Windows 上 `frame − client` 的左/上为负）：
+   `fW = w − bLeft + bRight`、`fH = h − bTop + bBottom` → 先构造以锚为中心的 `frameTarget` → **`client = frameTarget − (bLeft, bTop)`**（符号写反会偏移 2×标题栏高）。
+3. **尺寸取整**：宽/高向上取整到偶数（避免半像素偏置）。
+4. **布局不参与决策**：根布局 `setSizeConstraint(QLayout::SetNoConstraint)`，布局不再用 `minimumSize` 反向撑大窗口（否则页面内容一变就变大、中心漂移）；手动尺寸仍以 `layout()->minimumSize()`（激活后）作为下限兜底。
+5. **应用后自校正**：`setGeometry`/动画结束后按实际 `frameGeometry().center()` 与锚的差值 `move()` 回正。
+6. **诊断**：`Log::Info("geometry: ...")` 常驻；`HCI_TRACE_GEOM=1` 时追加 `%TEMP%/hci_geom.log`（记录 anchor/borders/frameTarget/target/avail 与 `actual[...]` 应用后真实值，供用户回传）。
+
+语言选择窗独立手算固定尺寸（标签 + 列表项数×行高 + 按钮行 + 边框/内边距余量），不再依赖布局 sizeHint。
+
 ## 页面预设（PageFactory，`gui/src/pages.cpp`）
 
 注册表 API（供拓展注册新页面）：
