@@ -293,6 +293,15 @@ void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
     // 页眉（仅当页显示）与页脚（按钮行实际高度）开销
     const int footerH = qMax(nextBtn_->sizeHint().height(), 28) + 8;
     h += (showHeader ? 24 : 0) + footerH;
+    // 【下限=布局最小尺寸】布局 sizeHint 依赖窗口高度（循环、不可用），但
+    // minimumSize 只由内容决定（无循环）。不加这个下限时，setGeometry
+    // 会被布局静默撑大 → 实际尺寸>请求尺寸 → 中心随之偏移（实测 496x216
+    // 被撑到 527x255）。
+    if (layout()) {
+        const QSize minSize = layout()->minimumSize();
+        w = qMax(w, minSize.width());
+        h = qMax(h, minSize.height());
+    }
     QRect avail = screen() ? screen()->availableGeometry()
                            : QRect(0, 0, 1280, 800);
     w = qMin(w, avail.width() * 2 / 3);
@@ -352,19 +361,30 @@ void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
     Log::Info(diag);
     // HCI_TRACE_GEOM=1 时把每次几何调度追加到 %TEMP%/hci_geom.log，
     // 用于用户侧回传（无终端场景 ConsoleSink 不可见）。
-    if (const char* trace = std::getenv("HCI_TRACE_GEOM")) {
-        if (trace[0] != '\0' && trace[0] != '0') {
-            if (FILE* f = std::fopen(
-                    (hci::port::tempDir() + "/hci_geom.log").c_str(), "ab")) {
-                std::fprintf(f, "%s\n", diag.c_str());
-                std::fflush(f);
-                std::fclose(f);
-            }
+    // "actual[...]" 行记录 setGeometry 之后的真实 client/frame，闭环验证
+    // 是否被布局/窗口管理器改写。
+    auto traceLine = [](const std::string& line) {
+        const char* trace = std::getenv("HCI_TRACE_GEOM");
+        if (!trace || trace[0] == '\0' || trace[0] == '0') return;
+        if (FILE* f = std::fopen(
+                (hci::port::tempDir() + "/hci_geom.log").c_str(), "ab")) {
+            std::fprintf(f, "%s\n", line.c_str());
+            std::fflush(f);
+            std::fclose(f);
         }
-    }
+    };
+    traceLine(diag);
+    auto traceActual = [this, &traceLine](const char* when) {
+        const QRect g = geometry();
+        const QRect f = frameGeometry();
+        traceLine(fmt("actual[{}]: geometry=({},{}){}x{} frame=({},{}){}x{}",
+                      when, g.x(), g.y(), g.width(), g.height(),
+                      f.x(), f.y(), f.width(), f.height()));
+    };
 
     if (first || cur == target) {
         setGeometry(target);
+        traceActual("immediate");
         return;
     }
     auto* anim = new QPropertyAnimation(this, "geometry", this);
@@ -374,7 +394,10 @@ void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
     anim->setStartValue(cur);
     anim->setEndValue(target);
     QObject::connect(anim, &QPropertyAnimation::finished, this,
-                     [this, target]() { setGeometry(target); });
+                     [this, target, &traceActual]() {
+                         setGeometry(target);
+                         traceActual("anim-end");
+                     });
     anim->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
