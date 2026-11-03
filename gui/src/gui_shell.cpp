@@ -9,6 +9,7 @@
 #include "hci/script.h"
 #include "hci/flow.h"
 
+#include <cstdio>
 #include <cstdlib>
 
 #include "resource_utils.h"
@@ -268,10 +269,15 @@ void GuiShell::setContentSize(int width, int height)
 
 // ------------------------------------------------------------------
 // 统一窗口几何调度（尺寸/中心/clamp/动画唯一入口）。
-// 内容尺寸：页面手算申报优先，外来页回退 sizeHint+hfw；全局上限=屏幕
-// 2/3；位置：首屏=屏幕中心且【直接落位不播动画】（语言窗之后主窗口首次
-// 绘制即达目标位置，避免从 (0,0) 飞入）；后续页面以当前窗口中心为锚
-// （中心不动）+ clamp 到可用区 + 200ms OutCubic 几何动画。
+// 【计算核心】：
+//   * 中心锚由调度器【自行维护】（anchorCenter_ = 外框中心，用户感知
+//     中心），绝不读回运行时 geometry()——客户区/边框/动画中间态都会
+//     引入漂移（标题栏导致的 ±10px 切页偏移即此类）。
+//   * 每次调度 = 中心恒等 + 尺寸变更：新左上角 = 中心 − 新尺寸/2 − 边框
+//     偏移；clamp 后把中心回写为实际外框中心（锚始终是"最终设置"值）。
+//   * 尺寸取整：宽度/高度先向上取整再取偶（避免 0.5px 偏置）。
+//   * 首屏（anchorValid_ 首次、含语言窗之后）：锚=屏幕可用区中心且直接
+//     落位不播动画（避免从 (0,0) 飞入）。
 // ------------------------------------------------------------------
 void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
 {
@@ -291,48 +297,71 @@ void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
                            : QRect(0, 0, 1280, 800);
     w = qMin(w, avail.width() * 2 / 3);
     h = qMin(h, avail.height() * 2 / 3);
-    // 高度向上取整并取整到偶数（避免亚像素/布局取整差）
-    h = ((h + 1) / 2) * 2;
+    // 向上取整到偶数（宽高一致处理，避免亚像素偏置）
+    auto evenCeil = [](int v) { return ((v + 1) / 2) * 2; };
+    w = evenCeil(w);
+    h = evenCeil(h);
 
-    // 位置锚定（用户约定公式）：
-    //   新【外框】左上角 = 基准中心 − 新尺寸/2 − 外框偏移
-    // 基准中心：首屏 = 屏幕可用区中心；之后 = 【最终设置的】上一窗口的
-    // 外框中心（frameGeometry——含标题栏/边框，用户感知的窗口中心；
-    // 用客户区 geometry 中心会随标题栏/边框在尺寸变化时产生 ~10px 漂移，
-    // 即“欢迎→协议下移=标题栏高、协议→欢迎右移=标题栏宽”的根因）。
-    const bool first = !positioned_;
-    QRect cur = geometry();
-    QRect frame = frameGeometry();
-    // 外框相对客户区偏移（无装饰窗口为 0）
-    const int frameLeft = frame.left() - cur.left();
-    const int frameTop = frame.top() - cur.top();
-    const int frameRight = frame.right() - cur.right();
-    const int frameBottom = frame.bottom() - cur.bottom();
-    QPoint center = avail.center();
-    if (positioned_ && cur.isValid() && cur.width() > 1 && cur.height() > 1) {
-        center = frame.center(); // 外框中心（用户感知中心）
+    // 核心状态：中心锚（外框中心）。首屏 = 屏幕可用区中心；之后恒等保持。
+    const bool first = !anchorValid_;
+    if (!anchorValid_) {
+        anchorCenter_ = avail.center();
+        anchorValid_ = true;
+        // 中心也取偶：保证 w/2、h/2 整除后左右/上下完全对称
+        anchorCenter_.setX((anchorCenter_.x() + 1) / 2 * 2);
+        anchorCenter_.setY((anchorCenter_.y() + 1) / 2 * 2);
     }
-    const int left = center.x() - w / 2 - frameLeft;
-    const int top = center.y() - h / 2 - frameTop;
-    QRect target(left, top, w, h);
-    // clamp 以【外框】为准
-    QRect tFrame(target.x() + frameLeft, target.y() + frameTop,
-                 w + frameLeft + frameRight, h + frameTop + frameBottom);
-    if (tFrame.right() > avail.right()) tFrame.moveRight(avail.right());
-    if (tFrame.left() < avail.left()) tFrame.moveLeft(avail.left());
-    if (tFrame.bottom() > avail.bottom()) tFrame.moveBottom(avail.bottom());
-    if (tFrame.top() < avail.top()) tFrame.moveTop(avail.top());
-    target = QRect(tFrame.x() - frameLeft, tFrame.y() - frameTop, w, h);
+
+    // 边框结构量（只读一次）：frame - client 的差值。
+    // Windows 上左/上为负（外框在客户区左/上之外），右/下为正。
+    const QRect cur = geometry();
+    const QRect frame = frameGeometry();
+    const int bLeft = frame.left() - cur.left();
+    const int bTop = frame.top() - cur.top();
+    const int bRight = frame.right() - cur.right();
+    const int bBottom = frame.bottom() - cur.bottom();
+
+    // 【核心换算】先按外框构造目标矩形，再由外框反推客户区：
+    //   外框宽/高 = 客户区宽/高 + 外框内缩量（左右/上下分别）
+    //   frameTarget 以 anchorCenter_ 为中心（外框中心恒等）
+    //   客户区左上 = frameTarget 左上 + 左/上边框内缩
+    // 旧实现用 "anchor − w/2 − 边框" 直接推导，等同忽略了左右/上下边框
+    // 之和的一半 → 每次切页产生 (bRight-bLeft)/2、(bBottom-bTop)/2 的固定
+    // 偏置（即观察到 ~标题栏高/宽的漂移）。
+    const int fW = w - bLeft + bRight;   // 外框宽
+    const int fH = h - bTop + bBottom;   // 外框高
+    QRect frameTarget(anchorCenter_.x() - fW / 2,
+                      anchorCenter_.y() - fH / 2, fW, fH);
+    // 外框级 clamp（贴可用区边界后中心随之移动，并回写锚）
+    if (frameTarget.right() > avail.right()) frameTarget.moveRight(avail.right());
+    if (frameTarget.left() < avail.left()) frameTarget.moveLeft(avail.left());
+    if (frameTarget.bottom() > avail.bottom()) frameTarget.moveBottom(avail.bottom());
+    if (frameTarget.top() < avail.top()) frameTarget.moveTop(avail.top());
+    const QRect target(frameTarget.x() + bLeft, frameTarget.y() + bTop, w, h);
+    anchorCenter_ = frameTarget.center(); // 回写：下次调度以此为锚
     positioned_ = true;
 
-    // 诊断日志（Info 级常驻，便于核对窗口中心/左上角与偏移来源）
-    Log::Info(fmt("geometry: first={} cur=({},{}){}x{} frame=({},{}){}x{} "
-                  "center=({},{}) target=({},{}){}x{} avail={}x{}",
-                  first ? 1 : 0, cur.x(), cur.y(), cur.width(), cur.height(),
-                  frame.x(), frame.y(), frame.width(), frame.height(),
-                  center.x(), center.y(), target.x(), target.y(),
-                  target.width(), target.height(), avail.width(),
-                  avail.height()));
+    // 诊断日志：锚中心/边框/目标常驻可见，便于核对偏移来源
+    const std::string diag = fmt(
+        "geometry: first={} anchor=({},{}) borders=({},{},{},{}) "
+        "frameTarget=({},{}){}x{} target=({},{}){}x{} avail=({},{}){}x{}",
+        first ? 1 : 0, anchorCenter_.x(), anchorCenter_.y(), bLeft, bTop,
+        bRight, bBottom, frameTarget.x(), frameTarget.y(), frameTarget.width(),
+        frameTarget.height(), target.x(), target.y(), target.width(),
+        target.height(), avail.x(), avail.y(), avail.width(), avail.height());
+    Log::Info(diag);
+    // HCI_TRACE_GEOM=1 时把每次几何调度追加到 %TEMP%/hci_geom.log，
+    // 用于用户侧回传（无终端场景 ConsoleSink 不可见）。
+    if (const char* trace = std::getenv("HCI_TRACE_GEOM")) {
+        if (trace[0] != '\0' && trace[0] != '0') {
+            if (FILE* f = std::fopen(
+                    (hci::port::tempDir() + "/hci_geom.log").c_str(), "ab")) {
+                std::fprintf(f, "%s\n", diag.c_str());
+                std::fflush(f);
+                std::fclose(f);
+            }
+        }
+    }
 
     if (first || cur == target) {
         setGeometry(target);

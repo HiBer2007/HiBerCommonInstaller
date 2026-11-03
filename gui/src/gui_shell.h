@@ -173,6 +173,11 @@ private:
     bool contentSizeValid_ = false;
     bool positioned_ = false; // first page centers on the screen; later
                               // pages keep the current window center
+    // 几何核心状态：调度器【自行维护】的窗口外框中心（用户感知中心）。
+    // 不读回运行时 geometry() —— 客户区/边框/动画中间态都会引入漂移；
+    // 每次调度 = 中心恒等 + 尺寸变更，clamp 后同步回写。
+    QPoint anchorCenter_ = QPoint(0, 0);
+    bool anchorValid_ = false;
 
     friend class GuiFlowUi;
 };
