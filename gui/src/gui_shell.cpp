@@ -332,12 +332,12 @@ void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
 
     // 【核心换算】先按外框构造目标矩形，再由外框反推客户区：
     //   外框宽/高 = 客户区宽/高 + 外框内缩量（左右/上下分别）
-    //   frameTarget 以 anchorCenter_ 为中心（外框中心恒等）
-    //   客户区左上 = frameTarget 左上 + 左/上边框内缩
-    // 旧实现用 "anchor − w/2 − 边框" 直接推导，等同忽略了左右/上下边框
-    // 之和的一半 → 每次切页产生 (bRight-bLeft)/2、(bBottom-bTop)/2 的固定
-    // 偏置（即观察到 ~标题栏高/宽的漂移）。
-    const int fW = w - bLeft + bRight;   // 外框宽
+    //   客户区左上 = 外框左上 − 外框偏移（bLeft/bTop 是 frame−client，
+    //   左/上为负值 → 客户区在上/左之外的内侧，须【减】才是客户区坐标）
+    // 旧实现：(a) 直接用 "anchor − w/2 − 边框" 忽略左右/上下边框之和的一半
+    //         (b) 反推客户区时用了 "+ bLeft/bTop"（符号相反，偏移 2×标题栏高）
+    // 两者叠加正是"切页时向下/右漂移约一个标题栏"的根因。
+    const int fW = w - bLeft + bRight;   // 外框宽 = 客户区宽 + 左内缩 + 右内缩
     const int fH = h - bTop + bBottom;   // 外框高
     QRect frameTarget(anchorCenter_.x() - fW / 2,
                       anchorCenter_.y() - fH / 2, fW, fH);
@@ -346,7 +346,7 @@ void GuiShell::scheduleGeometry(QWidget* page, bool showHeader)
     if (frameTarget.left() < avail.left()) frameTarget.moveLeft(avail.left());
     if (frameTarget.bottom() > avail.bottom()) frameTarget.moveBottom(avail.bottom());
     if (frameTarget.top() < avail.top()) frameTarget.moveTop(avail.top());
-    const QRect target(frameTarget.x() + bLeft, frameTarget.y() + bTop, w, h);
+    const QRect target(frameTarget.x() - bLeft, frameTarget.y() - bTop, w, h);
     anchorCenter_ = frameTarget.center(); // 回写：下次调度以此为锚
     positioned_ = true;
 
