@@ -514,7 +514,21 @@ bool FlowRunner::handleExecStep(FlowStep& step, std::string& error)
     if (step.type == "clean") {
         std::string target = v.interpolate(step.params.value("target", ""));
         if (target.empty()) { error = "clean: missing target"; return false; }
-        return exec::cleanDir(target, &error);
+        // "skip" keeps top-level entries (e.g. tools/git) alive across clean.
+        std::vector<std::string> keep;
+        if (step.params.contains("skip") && step.params["skip"].is_array()) {
+            for (auto& s : step.params["skip"]) keep.push_back(s.get<std::string>());
+        }
+        if (keep.empty()) {
+            return exec::cleanDir(target, &error);
+        }
+        std::error_code ec;
+        for (auto& entry : std::filesystem::directory_iterator(std::filesystem::u8path(target), ec)) {
+            const std::string name = entry.path().filename().u8string();
+            if (std::find(keep.begin(), keep.end(), name) != keep.end()) continue;
+            std::filesystem::remove_all(entry.path(), ec);
+        }
+        return true;
     }
 
     if (step.type == "copy") {
@@ -529,7 +543,7 @@ bool FlowRunner::handleExecStep(FlowStep& step, std::string& error)
     }
 
     if (step.type == "extract") {
-        std::string source = step.params.value("source", "");
+        std::string source = v.interpolate(step.params.value("source", ""));
         std::string target = v.interpolate(step.params.value("target", ""));
         std::vector<std::string> skip;
         if (step.params.contains("skip") && step.params["skip"].is_array()) {
@@ -623,7 +637,7 @@ bool FlowRunner::handleExecStep(FlowStep& step, std::string& error)
         } else if (step.params.contains("backend")) {
             chain.push_back(step.params["backend"].get<std::string>());
         } else {
-            chain = {"github", "direct"};
+            chain = {"github", "github-ps", "direct"};
         }
         if (dreq.url.empty() && dreq.asset.empty() && dreq.package.empty()) {
             error = "download: missing url/asset/package";

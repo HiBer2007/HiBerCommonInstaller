@@ -23,6 +23,38 @@ namespace {
 
 using hci::exec::findSystemGit;
 
+// MinGit ships mingw64/bin/git.exe and cmd/git.exe; PortableGit ships
+// bin/git.exe. Return the first candidate that actually runs.
+std::string findRunnableGitIn(const std::string& gitDir)
+{
+    namespace fs = std::filesystem;
+    if (gitDir.empty()) return {};
+    const std::vector<fs::path> candidates = {
+        fs::u8path(gitDir) / "bin" / "git.exe",
+        fs::u8path(gitDir) / "mingw64" / "bin" / "git.exe",
+        fs::u8path(gitDir) / "ucrt64" / "bin" / "git.exe",
+        fs::u8path(gitDir) / "cmd" / "git.exe",
+    };
+    for (const auto& candidate : candidates) {
+        if (!fs::exists(candidate)) continue;
+        hci::exec::ProcessResult result;
+        if (hci::exec::runProcess({ candidate.u8string(), "--version" }, 15000, result)
+            && result.exitCode == 0) {
+            return candidate.u8string();
+        }
+    }
+    return {};
+}
+
+std::string probeVersion(const std::string& exe)
+{
+    if (exe.empty()) return {};
+    hci::exec::ProcessResult result;
+    if (!hci::exec::runProcess({ exe, "--version" }, 15000, result)) return {};
+    if (result.exitCode != 0) return {};
+    return result.output;
+}
+
 class GitExtension : public hci::IHciExtension {
 public:
     const char* id() const override { return "hci.git"; }
@@ -73,9 +105,10 @@ public:
                 std::string mode = v.get("gitMode");
                 std::string ec = params.value("editorComponent", "editor");
                 bool editor = v.getBool("components." + ec, false);
-                std::string variant = editor ? "PortableGit" : "MinGit";
-                if (params.contains("editorVariant") && editor)
-                    variant = params.value("editorVariant", "PortableGit");
+                (void)editor;
+                // Bundled Git must always be MinGit (zip, extractable) — PortableGit
+                // is a 7z self-extractor and only used for the system-wide install.
+                std::string variant = params.value("bundledVariant", "MinGit");
 
                 // Bundled install location: step param > product metadata.
                 std::string gitDir = params.value("gitDir", "");
@@ -94,28 +127,43 @@ public:
                     v.set("gitVariant", params.value("installerVariant", "Git-"));
                     v.set("gitInstallerPath", "{tempDir}/git_installer.exe");
                     v.remove("gitPath"); // resolved by git_refresh after install
-                } else if (mode == "system" || mode.empty() || mode == "auto") {
+                } else if (mode == "system") {
                     std::string sysPath;
                     bool found = findSystemGit(&sysPath);
-                    if (mode == "system" && !found) {
-                        // system requested but missing: fall back to bundled
-                        v.setBool("gitUseSystem", false);
-                        v.setBool("gitDownload", true);
-                    } else if (found) {
+                    if (found) {
                         v.setBool("gitUseSystem", true);
                         v.setBool("gitDownload", false);
                         v.set("gitSystemPath", sysPath);
                         v.set("gitPath", sysPath.empty() ? "git" : sysPath);
                     } else {
+                        // system requested but missing: always fall back to bundled
                         v.setBool("gitUseSystem", false);
                         v.setBool("gitDownload", true);
                     }
-                } else { // "bundled"
+                } else {
+                    // Default (empty/"auto") and explicit "bundled": install Git
+                    // into the product directory — never depend on system Git.
                     v.setBool("gitUseSystem", false);
                     v.setBool("gitDownload", true);
                 }
                 v.set("gitVariant", variant);
                 v.setBool("gitPlanned", true);
+                return true;
+            });
+
+        api.registry().registerStep(
+            "git_finalize",
+            [](const nlohmann::json&, hci::InstallContext& ctx, std::string& error) {
+                hci::Vars& v = ctx.vars();
+                std::string dir = v.interpolate(v.get("gitInstallDir"));
+                std::string exe = findRunnableGitIn(dir);
+                if (exe.empty()) {
+                    error = "bundled Git is not runnable under " + dir +
+                        " (expected bin/git.exe, mingw64/bin/git.exe or cmd/git.exe)";
+                    return false;
+                }
+                v.set("gitPath", exe);
+                v.set("gitVersion", probeVersion(exe));
                 return true;
             });
 

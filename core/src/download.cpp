@@ -195,6 +195,66 @@ public:
     }
 };
 
+// ------------------------------------------------------------------
+// GitHub asset backend via PowerShell (SChannel): the cpr/libcurl TLS
+// path is blocked on some networks ("GitHub API HTTP 0"), while Windows
+// PowerShell resolves the release and downloads the asset reliably.
+// ------------------------------------------------------------------
+class GitHubPowerShellBackend : public IDownloadBackend {
+public:
+    const char* name() const override { return "github-ps"; }
+    bool supports(const DownloadRequest& req) const override
+    {
+        return !req.asset.empty() && !req.variant.empty() && !req.dest.empty();
+    }
+    bool fetch(DownloadRequest& req, DownloadProgress,
+               std::string& error) override
+    {
+        Log::Info(fmt("download backend 'github-ps': repo={} variant={}",
+                      req.asset, req.variant));
+        auto quote = [](std::string s) {
+            std::string out = "'";
+            for (char c : s) {
+                if (c == '\'') out += "''";
+                else out += c;
+            }
+            return out + "'";
+        };
+        const std::string pattern = req.allowExe
+            ? "($a.Name -like '*" + req.variant + "*' -and $a.Name -like '*64-bit*')"
+            : "($a.Name -like '*" + req.variant + "*' -and $a.Name -like '*64-bit*' -and $a.Name -like '*.zip')";
+        std::string cmd =
+            "$ErrorActionPreference='Stop';"
+            "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;"
+            "$r=Invoke-RestMethod -Uri 'https://api.github.com/repos/" + req.asset + "/releases/latest';"
+            "$u='';foreach($a in $r.assets){if(" + pattern + "){$u=$a.browser_download_url;break}};"
+            "if(-not $u){throw 'no matching asset for " + req.variant + "'};"
+            "Invoke-WebRequest -UseBasicParsing -Uri $u -OutFile " + quote(req.dest);
+        hci::exec::ProcessResult r;
+        if (!hci::exec::runProcess(
+                {"powershell", "-NoProfile", "-NonInteractive",
+                 "-ExecutionPolicy", "Bypass", "-Command", cmd},
+                900000, r)) {
+            error = "powershell failed to start";
+            return false;
+        }
+        if (r.exitCode != 0) {
+            std::error_code ec;
+            fs::remove(fs::u8path(req.dest), ec);
+            error = r.output.empty()
+                ? "github-ps failed (exit " + std::to_string(r.exitCode) + ")"
+                : r.output.substr(0, r.output.size() < 400 ? r.output.size() : 400);
+            return false;
+        }
+        return true;
+    }
+};
+
+std::shared_ptr<IDownloadBackend> makeGitHubPowerShellBackend()
+{
+    return std::make_shared<GitHubPowerShellBackend>();
+}
+
 std::shared_ptr<IDownloadBackend> makeDirectBackend()
 {
     return std::make_shared<DirectBackend>();
@@ -236,6 +296,7 @@ DownloadResult runChain(const DownloadRequest& req,
     std::vector<std::pair<std::string, std::shared_ptr<IDownloadBackend>>> pool;
     pool.emplace_back("direct", makeDirectBackend());
     pool.emplace_back("github", makeGitHubBackend());
+    pool.emplace_back("github-ps", makeGitHubPowerShellBackend());
     pool.emplace_back("powershell", makePowerShellBackend());
     pool.emplace_back("curl", makeCurlBackend());
     for (auto& b : extra) {
