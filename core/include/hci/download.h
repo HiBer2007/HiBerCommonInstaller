@@ -26,6 +26,7 @@ struct DownloadRequest {
     bool allowExe = false; // match installer .exe assets too
     std::string package;  // package id (winget / apt backends)
     std::string dest;     // output file/directory (optional for installers)
+    long long maxSeconds = 0; // per-backend network cap (0 = backend default)
 };
 
 struct DownloadResult {

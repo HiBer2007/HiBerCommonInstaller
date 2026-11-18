@@ -19,6 +19,7 @@
 
 #include <filesystem>
 
+
 namespace {
 
 using hci::exec::findSystemGit;
@@ -118,6 +119,29 @@ public:
                 v.set("gitPath", "{installDir}/" + gitDir + "/bin/git.exe");
                 v.set("gitInstallKind", "");
 
+                // Reuse an already-installed bundled Git (upgrade / repair / re-install
+                // in place). Downloading MinGit again is slow and, on restricted
+                // networks, can stall the installer at 0 B/s. cleanTarget keeps
+                // "tools" alive, so this directory survives a normal re-install.
+                // Pass "reuseExisting": false to force a refresh.
+                const bool reuseExisting = params.value("reuseExisting", true);
+                if (reuseExisting && mode != "install-system" && mode != "system") {
+                    const std::string probeDir = v.interpolate("{installDir}/" + gitDir);
+                    const std::string existing = findRunnableGitIn(probeDir);
+                    if (!existing.empty()) {
+                        v.setBool("gitUseSystem", false);
+                        v.setBool("gitDownload", false);
+                        v.setBool("gitExisting", true);
+                        v.set("gitInstallKind", "");
+                        v.set("gitPath", existing);
+                        v.set("gitVersion", probeVersion(existing));
+                        v.set("gitVariant", variant);
+                        v.setBool("gitPlanned", true);
+                        return true;
+                    }
+                }
+                v.setBool("gitExisting", false);
+
                 if (mode == "install-system") {
                     // Download the Git for Windows installer and install it
                     // system-wide (needs elevation; see git_refresh after).
@@ -158,8 +182,20 @@ public:
                 std::string dir = v.interpolate(v.get("gitInstallDir"));
                 std::string exe = findRunnableGitIn(dir);
                 if (exe.empty()) {
+                    // Bundled Git was not obtained (offline / download blocked).
+                    // Fall back to a system Git so the product still gets a valid
+                    // git_path instead of a dangling placeholder.
+                    std::string sysPath;
+                    if (findSystemGit(&sysPath)) {
+                        v.setBool("gitUseSystem", true);
+                        v.set("gitSystemPath", sysPath);
+                        v.set("gitPath", sysPath);
+                        v.set("gitVersion", probeVersion(sysPath));
+                        error.clear();
+                        return true;
+                    }
                     error = "bundled Git is not runnable under " + dir +
-                        " (expected bin/git.exe, mingw64/bin/git.exe or cmd/git.exe)";
+                        " (expected bin/git.exe, mingw64/bin/git.exe, ucrt64/bin/git.exe or cmd/git.exe)";
                     return false;
                 }
                 v.set("gitPath", exe);

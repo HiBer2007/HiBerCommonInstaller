@@ -310,6 +310,17 @@ bool FlowRunner::runStep(FlowSpec& flow, FlowStep& step, size_t& index,
         return false;
     }
 
+    if (!ok && step.params.value("optional", false)) {
+        // Optional step failed (e.g. Git download on a restricted network):
+        // report a warning and continue instead of aborting the whole install.
+        std::string message = error.empty() ? "optional step failed" : error;
+        if (bus_) bus_->publish("hci/step",
+            {{"id", step.id}, {"state", "warning"}, {"message", message}});
+        if (ui_) ui_->onProgress(step.id + " (optional, skipped)", -1, message);
+        error.clear();
+        ok = true;
+    }
+
     if (ok && !step.next.empty()) {
         if (step.next == "__end") {
             index = flow.steps.size(); // terminate the loop
@@ -624,6 +635,8 @@ bool FlowRunner::handleExecStep(FlowStep& step, std::string& error)
         dreq.dest = v.interpolate(step.params.value("dest", ""));
         dreq.variant = v.interpolate(step.params.value("variant", ""));
         dreq.allowExe = step.params.value("ext", "") == "exe";
+        if (step.params.contains("timeoutSeconds"))
+            dreq.maxSeconds = step.params.value("timeoutSeconds", 0);
         dreq.package = step.params.value("package", "");
         if (step.params.contains("url"))
             dreq.url = v.interpolate(step.params["url"].get<std::string>());

@@ -131,13 +131,15 @@ public:
             }
             return sq + out + sq;
         };
+        const long long cap = req.maxSeconds > 0 ? req.maxSeconds : 330;
         std::string cmd = "Invoke-WebRequest -Uri " + q(req.url) +
-                          " -OutFile " + q(req.dest);
+                          " -OutFile " + q(req.dest) +
+                          " -TimeoutSec " + std::to_string(cap);
         hci::exec::ProcessResult r;
         if (!hci::exec::runProcess(
                 {"powershell", "-NoProfile", "-NonInteractive",
                  "-ExecutionPolicy", "Bypass", "-Command", cmd},
-                360000, r)) {
+                (cap + 20) * 1000, r)) {
             error = "powershell failed to start";
             return false;
         }
@@ -177,8 +179,10 @@ public:
         hci::exec::ProcessResult r;
         if (!hci::exec::runProcess(
                 {"curl", "-L", "--fail", "--show-error", "--silent",
+                 "--connect-timeout", "20",
+                 "--max-time", std::to_string(req.maxSeconds > 0 ? req.maxSeconds : 330),
                  "-o", req.dest, req.url},
-                360000, r)) {
+                ((req.maxSeconds > 0 ? req.maxSeconds : 330) + 20) * 1000, r)) {
             error = "curl failed to start";
             return false;
         }
@@ -223,18 +227,19 @@ public:
         const std::string pattern = req.allowExe
             ? "($a.Name -like '*" + req.variant + "*' -and $a.Name -like '*64-bit*')"
             : "($a.Name -like '*" + req.variant + "*' -and $a.Name -like '*64-bit*' -and $a.Name -like '*.zip')";
+        const long long cap = req.maxSeconds > 0 ? req.maxSeconds : 870;
         std::string cmd =
             "$ErrorActionPreference='Stop';"
             "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;"
-            "$r=Invoke-RestMethod -Uri 'https://api.github.com/repos/" + req.asset + "/releases/latest';"
+            "$r=Invoke-RestMethod -TimeoutSec " + std::to_string((std::min)(cap, 60LL)) + " -Uri 'https://api.github.com/repos/" + req.asset + "/releases/latest';"
             "$u='';foreach($a in $r.assets){if(" + pattern + "){$u=$a.browser_download_url;break}};"
             "if(-not $u){throw 'no matching asset for " + req.variant + "'};"
-            "Invoke-WebRequest -UseBasicParsing -Uri $u -OutFile " + quote(req.dest);
+            "Invoke-WebRequest -UseBasicParsing -TimeoutSec " + std::to_string(cap) + " -Uri $u -OutFile " + quote(req.dest);
         hci::exec::ProcessResult r;
         if (!hci::exec::runProcess(
                 {"powershell", "-NoProfile", "-NonInteractive",
                  "-ExecutionPolicy", "Bypass", "-Command", cmd},
-                900000, r)) {
+                (cap + 30) * 1000, r)) {
             error = "powershell failed to start";
             return false;
         }
