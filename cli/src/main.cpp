@@ -254,10 +254,50 @@ private:
 
 } // namespace
 
+#ifdef _WIN32
+// Windows argv is ANSI (ACP) encoded, not UTF-8. The whole HCI pipeline (vars,
+// JSON protocol, fs::u8path, install.conf) assumes UTF-8, so a Chinese install
+// path used to reach fs::u8path as GBK bytes and throw inside the path step
+// (uncaught -> abort -> 0xC0000409). Rebuild the arguments from the wide
+// command line instead.
+static std::vector<std::string> commandLineUtf8()
+{
+    std::vector<std::string> args;
+    int wargc = 0;
+    LPWSTR* wargv = CommandLineToArgvW(GetCommandLineW(), &wargc);
+    if (!wargv) return args;
+    for (int i = 0; i < wargc; ++i) {
+        int len = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, nullptr, 0, nullptr, nullptr);
+        std::string value;
+        if (len > 1) {
+            value.resize(static_cast<size_t>(len - 1));
+            WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, value.data(), len, nullptr, nullptr);
+        }
+        args.push_back(std::move(value));
+    }
+    LocalFree(wargv);
+    return args;
+}
+#endif
+
 int main(int argc, char* argv[])
 {
     CliOptions opt;
     std::string err;
+    std::vector<std::string> utf8Args;
+    std::vector<char*> argPointers;
+    std::vector<char*> argVector;
+#ifdef _WIN32
+    utf8Args = commandLineUtf8();
+    for (auto& a : utf8Args) argPointers.push_back(const_cast<char*>(a.c_str()));
+    argc = static_cast<int>(argPointers.size());
+    argVector = argPointers;
+    argv = argVector.data();
+#else
+    (void)utf8Args;
+    (void)argPointers;
+    (void)argVector;
+#endif
     if (!parseArgs(argc, argv, opt, err)) {
         std::cerr << "Error: " << err << "\n\n";
         printUsage(std::cerr);
